@@ -1,0 +1,42 @@
+Name:                   acid-cell
+Version:                0.1.0
+Author:                 Scott Murphy <scottmurphy09@gmail.com>
+Maintainer:             Scott Murphy <scottmurphy09@gmail.com>
+License:                BSD3
+License-File:           LICENSE
+-- Synopsis:               
+-- Description:            
+Cabal-Version:          >= 1.10
+Build-Type:             Simple
+
+Library
+  Default-Language:     Haskell2010
+  HS-Source-Dirs:       src
+  GHC-Options:          -Wall
+  Exposed-Modules:      Data.Acid.Cell
+  Other-Modules:        Data.Acid.Cell.Internal
+  Build-Depends:        base >= 4 && < 5
+                      , basic-prelude
+                      , safecopy == 0.8.3.7569
+                      , acid-state      == 0.12.1
+                      , containers == 0.5.0.0
+                      , bytestring == 0.10.0.2
+
+Test-Suite spec
+  Type:                 exitcode-stdio-1.0
+  Default-Language:     Haskell2010
+  Hs-Source-Dirs:       src
+                      , test
+  Ghc-Options:          -Wall
+  Main-Is:              Spec.hs
+  Build-Depends:        base
+                      , hspec
+                      , safecopy
+                      , acid-state 
+                      , containers
+                      , bytestring
+                      , basic-prelude
+
+Source-Repository head
+  Type:                 git
+--  Location:             
