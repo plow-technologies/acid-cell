@@ -28,7 +28,7 @@ myAcidStateVariable = x :: SomeAcidState
 
 -- define
 
-myRootDir :: Text
+myRootDir :: FilePath
 myRootDir = "./stateSpace"
 
 
@@ -58,9 +58,10 @@ data CellCore k h s t stlive stdormant = CellCore {
 type TCellCore k h s t stlive stdormant = TVar (CellCore k h s t (TVar stlive) (TVar stdormant))
 
 -- Generate dig for CellCoreDormant
-insertCellSomeAcidState :: CellCore -> SomeAcidState -> Update ...
-deleteCellSomeAcidState :: CellCore -> SomeAcidState -> Update ...
-getCellSomeAcidState    :: CellCore -> SomeAcidState -> Query ...   
+-- These are not directly availalbe to the user
+insertCellSomeAcidPath :: CellCore -> SomeAcidState -> Update ...
+deleteCellSomeAcidPath :: CellCore -> SomeAcidState -> Update ...
+getCellSomeAcidPath    :: CellCore -> SomeAcidState -> Query ...   
 
 -- DIG structure 
 
@@ -70,6 +71,8 @@ data AcidCell someacidstate = AcidCell {
                                        , cellRoot :: Text
                                       }
 
+
+-- UI Functions
 insertState :: AcidCell -> <SomeAcidState> -> IO (Either AcidCellError DirectedKeyRaw)
 deleteState :: AcidCell -> DirectedKeyRaw -> IO Bool
 getState      :: AcidCell -> DirectedKeyRaw -> IO (Either AcidCellError SomeAcidState)
