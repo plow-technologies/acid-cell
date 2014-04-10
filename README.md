@@ -31,9 +31,13 @@ myAcidStateVariable = x :: SomeAcidState
 myRootDir :: Text
 myRootDir = "./stateSpace"
 
-mycellKey = CellKey { getKey = foo       --  foo :: SomeAcidState -> DirectedKeyRaw
-                    , makeFilename = bar --  bar :: DirectedKeyRaw -> ValidFileText
-                    }
+
+-- Fill this guy
+data CellKey k h s t st = CellKey { getKey :: st -> (DirectedKeyRaw k h s t)
+                                  , codeCellKeyFilename :: (DirectedKeyRaw k h s t) -> Text
+                                  , decodeCellKeyFilename :: Text -> (DirectedKeyRaw k h s t)
+                                  }
+                    
 
 $(createAcidCell `myRootDir ''SomeAcidState 'myCellKey)
 
@@ -46,27 +50,31 @@ Here is what the template haskell call above generates.
 ``` haskell
 
 -- data types for managing states in the cell both active and dormant
+data CellCore k h s t stlive stdormant = CellCore { 
+      ccLive :: (M.Map (DirectedKeyRaw k h s t) stlive )
+      ccDormant :: (M.Map (DirectedKeyRaw k h s t) stdormant )
+    }
 
-type CellCoreLive  = Map DirectedKeyRaw (MVar SomeAcidState) -- Live AcidStates can be looked up
-type CellCoreDormant = Map DirectedKeyRaw FileName -- File Locations of the states
-
+type TCellCore k h s t stlive stdormant = TVar (CellCore k h s t (TVar stlive) (TVar stdormant))
 
 -- Generate dig for CellCoreDormant
-insertCellSomeAcidState :: CellCoreDormant -> DirectedKeyRaw -> Update ...
-deleteCellSomeAcidState :: CellCoreDormant -> DirectedKeyRaw -> Update ...
-getCellSomeAcidState    :: CellCoreDormant -> DirectedKeyRaw -> Query ...   
+insertCellSomeAcidState :: CellCore -> SomeAcidState -> Update ...
+deleteCellSomeAcidState :: CellCore -> SomeAcidState -> Update ...
+getCellSomeAcidState    :: CellCore -> SomeAcidState -> Query ...   
 
 -- DIG structure 
 
-data AcidCell someacidstate = AcidCell {
-                                         insertState :: <SomeAcidState> -> IO (Either AcidCellError DirectedKeyRaw)
-                                       , deleteState :: DirectedKeyRaw -> IO Bool
-                                       , getState    :: DirectedKeyRaw -> IO (Either AcidCellError SomeAcidState)                                         
-                                       , queryCell   :: (SomeAcidState -> a ) -> IO (Either AcidCellError (monoid a))
-                                       , cellCoreLive    :: (MVar CellCoreLive) -- the live, MVar version of the cell structure
-                                       , cellCoreDormant :: (AcidState CellCoreDormant) -- the storable Acid version 
-
+data AcidCell someacidstate = AcidCell {                                      
+                                       , cellCore :: TCellCore ... 
+                                       , cellKeys :: CellKey ...
+                                       , cellRoot :: Text
                                       }
+
+insertState :: AcidCell -> <SomeAcidState> -> IO (Either AcidCellError DirectedKeyRaw)
+deleteState :: AcidCell -> DirectedKeyRaw -> IO Bool
+getState      :: AcidCell -> DirectedKeyRaw -> IO (Either AcidCellError SomeAcidState)
+queryCell   :: AcidCell -> (SomeAcidState -> a ) -> IO (Either AcidCellError (monoid a))
+
 -- updateState
 -- deleteWhere
 
@@ -85,8 +93,9 @@ makeCellSomeAcidState :: IO AcidCellSomeAcidState
 
 someStateManip :: IO ()
     acell <- makeCellSomeAcidState
-    drId  <- insertState SomeAcidState
-    ast   <- getState drId
+    drId  <- insertState acell SomeAcidState
+    rslt  <- queryCell acell allConsistentStates 
+    ast   <- getState acell drId
     deleteState drId 
     
 
