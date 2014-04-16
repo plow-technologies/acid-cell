@@ -7,26 +7,43 @@ module Data.Acid.Cell.InternalSpec (main
                                    
                                    , TestHost (..) 
                                     
-                                    
+                                   , KeyedTestSetStore (..)
                                    , AcidCellTestSet (..)
                                    , TestSource (..)
                                    , TestHost (..)
                                    , TestTime (..) 
                                    , newKeyedTestSetStore
+                                   , TestDest (.. )
+                                   , TestSource (.. )
+                                   , getTestCellKey
                                     ,spec ) where 
 
 
 import CorePrelude
+import Control.Lens
 import Control.Monad.Reader ( ask )
 import Control.Monad.State  ( get, put )
 import Data.Acid            ( AcidState, Query, Update, EventResult
                             , makeAcidic,openLocalStateFrom,  closeAcidState )
 import Test.Hspec
 import GHC.Generics
+import qualified Data.Serialize as Ser
+
 import Data.Typeable
 import qualified Data.Set as S
-import DirectedKeys.Types
+
+
 import Data.SafeCopy        ( base, deriveSafeCopy )
+
+
+-- Texty Text
+import qualified Data.Text.Encoding as T
+import qualified Data.Text as T
+-- PlowSpecific
+import DirectedKeys
+import DirectedKeys.Types
+import Data.Acid.Cell.Types
+
 
 main :: IO ()
 main = hspec spec
@@ -38,10 +55,22 @@ spec = do
       True `shouldBe` True
 
 
+
+getTestCellKey :: CellKey TestKey TestSource TestDest TestTime KeyedTestSetStore 
+getTestCellKey = CellKey tGetKey tCodeCellKeyFilename tDecodeCellKeyFilename
+    where                            -- No type synonym use, because this is going to acid state stuff
+      tGetKey :: KeyedTestSetStore -> (DirectedKeyRaw TestKey TestHost TestHost TestTime)
+      tGetKey = testSetKey.getKeyedTestSet 
+      tCodeCellKeyFilename ::  (DirectedKeyRaw TestKey TestHost TestHost TestTime) -> Text
+      tCodeCellKeyFilename = T.decodeUtf8 . parseFilename . encodeKey
+      tDecodeCellKeyFilename :: Text -> Either Text (DirectedKeyRaw TestKey TestHost TestHost TestTime)
+      tDecodeCellKeyFilename t = over _Left vswap (decodeKeyPart.decodeFilename.T.encodeUtf8 $ t)
+      vswap = T.pack -- change the string to text
+
 -- the generic is important for creating Serialize
 
 newtype KeyedTestSetStore = KeyedTestSetStore { getKeyedTestSet :: KeyedTestSet AcidCellTestKey (S.Set Text) } 
-    deriving (Eq,Ord,Generic)
+    deriving (Eq,Ord,Generic,Typeable)
 
 data KeyedTestSet k a = KeyedTestSet { 
         testSetKey :: k
@@ -53,10 +82,19 @@ data KeyedTestSet k a = KeyedTestSet {
 newtype TestKey = TestKey {unKey:: Int } 
     deriving (Eq,Show,Ord,Generic) 
 
+instance Ser.Serialize TestKey where
+
+
 newtype TestHost = TestHost { unHost :: Int } 
     deriving (Eq,Show,Ord,Generic) 
+
+instance Ser.Serialize TestHost where
+
 newtype TestTime = TestTime { unTime :: Int} 
     deriving (Eq,Show,Ord,Generic) 
+
+instance Ser.Serialize TestTime where
+
 
 type TestSource = TestHost 
 type TestDest   = TestHost 

@@ -42,6 +42,9 @@ data CellKey k h s t st = CellKey { getKey :: st -> (DirectedKeyRaw k h s t)
 $(createAcidCell `myRootDir ''SomeAcidState 'myCellKey)
 
 ```
+The elements in DirectedKey Raw must be made instances of Serialize and Typeable, they are going to be put in their
+own Acid state.
+
 
 ### Creates ...
 
