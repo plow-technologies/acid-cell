@@ -59,4 +59,4 @@ Test-Suite spec
                       , system-filepath
 Source-Repository head
   Type:                 git
---  Location:             
+  Location:             https://github.com/plow-technologies/acid-cell.git
