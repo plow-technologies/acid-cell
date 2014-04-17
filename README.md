@@ -39,11 +39,9 @@ data CellKey k h s t st = CellKey { getKey :: st -> (DirectedKeyRaw k h s t)
                                   }
                     
 
-$(createAcidCell `myRootDir ''SomeAcidState 'myCellKey)
+$(makeAcidCell `myCellKey 'initialState ''SomeAcidState )
 
 ```
-The elements in DirectedKey Raw must be made instances of Serialize and Typeable, they are going to be put in their
-own Acid state.
 
 
 ### Creates ...
@@ -67,16 +65,14 @@ deleteCellSomeAcidPath :: CellCore -> SomeAcidState -> Update ...
 getCellSomeAcidPath    :: CellCore -> SomeAcidState -> Query ...   
 
 -- DIG structure 
-
-data AcidCell someacidstate = AcidCell {                                      
-                                       , cellCore :: TCellCore ... 
-                                       , cellKeys :: CellKey ...
-                                       , cellRoot :: Text
-                                      }
+data CellCore  k src dst tm tvlive stdormant = CellCore { 
+       ccLive     :: TVar (M.Map (DirectedKeyRaw  k src dst tm) tvlive )
+      ,ccDormant :: stdormant
+    }
 
 
 -- UI Functions
-insertState :: AcidCell -> <SomeAcidState> -> IO (Either AcidCellError DirectedKeyRaw)
+insertState :: AcidCell -> <SomeAcidState> -> IO (EventResult InsertAcidCellPathFileKey)
 deleteState :: AcidCell -> DirectedKeyRaw -> IO Bool
 getState      :: AcidCell -> DirectedKeyRaw -> IO (Either AcidCellError SomeAcidState)
 queryCell   :: AcidCell -> (SomeAcidState -> a ) -> IO (Either AcidCellError (monoid a))
