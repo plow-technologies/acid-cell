@@ -1,5 +1,5 @@
 Name:                   acid-cell
-Version:                0.1.0
+Version:                0.1.1
 Author:                 Scott Murphy <scottmurphy09@gmail.com>
 Maintainer:             Scott Murphy <scottmurphy09@gmail.com>
 License:                BSD3
@@ -14,10 +14,12 @@ Library
   HS-Source-Dirs:       src
   GHC-Options:          -Wall
   Exposed-Modules:      Data.Acid.Cell
+  Other-Modules:        Data.Acid.Cell.Internal                        
                         Data.Acid.Cell.Types
                         Data.Acid.Cell.TH
                         Data.Acid.Cell.TH.PathMakers
-  Other-Modules:        Data.Acid.Cell.Internal                        
+                        Data.Acid.Cell.TH.StateMakers
+
   Build-Depends:        base >= 4 && < 5
                       , text == 1.1.0.1
                       , system-filepath == 0.4.10
