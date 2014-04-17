@@ -10,7 +10,7 @@ import Data.Acid            ( AcidState, Query, Update, EventResult
 
 import Language.Haskell.TH
 -- Control
-import Control.Lens
+
 import CorePrelude
 
 import Control.Concurrent.STM
