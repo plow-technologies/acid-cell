@@ -129,6 +129,7 @@ newKeyedTestSetStore = KeyedTestSetStore . KeyedTestSet k $ S.empty
           e = ""
 
 
+
 -- Lensing is a nice thing to do here, but this is the quick and dirty way
 
 insertNew :: Text -> Update (KeyedTestSetStore ) Int 

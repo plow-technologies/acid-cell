@@ -14,19 +14,20 @@
 
 module Data.Acid.Cell.Types (AcidCellError (..)
                             , CellKey (..)
-                            , getKey
-                            , codeCellKeyFilename
-                            , decodeCellKeyFilename                              
-                            , AcidCell 
-                            , cellCore
-                            , cellKey
-                            , FileKey (..)
-                            , CellKeyStore
-                            , deleteAcidCellPath
-                            , insertAcidCellPath
-                            , getAcidCellPath
+                            , AcidCell
+                            , initializeAcidCell
+                            , getState
+                            , insertState
+                            , deleteState
+                            , stateFoldlWithKey
                             ) where
 
+
+-- System 
+import Filesystem.Path.CurrentOS hiding (root)
+import Filesystem.Path hiding (root)
+import Filesystem 
+import qualified Shelly as Shelly
 -- Controls
 import CorePrelude
 import Control.Concurrent
@@ -38,6 +39,7 @@ import Language.Haskell.TH.Syntax
 import Language.Haskell.TH.Lift
 -- Typeclasses
 import Data.Acid
+import Data.Acid.Advanced   (update', query')
 import Data.Typeable
 import Data.Foldable
 import Data.Traversable
@@ -50,6 +52,9 @@ import DirectedKeys.Types
 -- Containers 
 import qualified Data.Map as M 
 import qualified Data.Set as S
+
+-- Strings /Monomorphs 
+import qualified Data.Text as T
 
 -- | 'CellKey' declares two functions, 
 -- 'getKey' which is supposed to take an Acidic Value and return a 'DirectedKeyRaw' 
@@ -80,19 +85,23 @@ $(deriveSafeCopy 0 'base ''FileKey)
 makeFileKey :: CellKey k src dst tm st -> st -> FileKey 
 makeFileKey ck s = FileKey (codeCellKeyFilename ck . getKey ck $ s)
 
+unmakeFileKey :: CellKey k src dst tm st
+                       -> FileKey -> Either Text (DirectedKeyRaw k src dst tm)
+unmakeFileKey ck s = (decodeCellKeyFilename ck).getFileKey $ s
 
 -- |'CellCoreLive' and 'CellCoreDormant' both define maps to acid states
 -- Live means currently loaded into memory
 -- Dormant means currently not loaded
 
 data CellCore  k src dst tm tvlive stdormant = CellCore { 
-      ccLive     :: (M.Map (DirectedKeyRaw  k src dst tm) tvlive )
-      ,ccDormant :: CellKeyStore
+       ccLive     :: TVar (M.Map (DirectedKeyRaw  k src dst tm) tvlive )
+      ,ccDormant :: stdormant
     }
 
 newtype CellKeyStore  = CellKeyStore { getCellKeyStore :: (S.Set FileKey)}
     deriving (Typeable,Show,Generic)
 
+emptyCellKeyStore = CellKeyStore S.empty
 
 $(deriveSafeCopy 0 'base ''CellKeyStore)
 
@@ -100,12 +109,12 @@ $(deriveSafeCopy 0 'base ''CellKeyStore)
 --  Transactional Cell Core is where both the map to live acidstates are stored and the map for 
 --  dormant filenames
 
-type TCellCore  k src dst tm stlive stdormant = TVar (CellCore  k src dst tm (TVar stlive) stdormant)
+type TCellCore  k src dst tm stlive stdormant =  (CellCore  k src dst tm  stlive stdormant)
 
 
 data AcidCell  k src dst tm stlive stdormant = AcidCell { 
-      cellCore :: TCellCore  k src dst tm stlive stdormant 
-    , cellKey  :: CellKey  k src dst tm stdormant 
+      cellCore :: TCellCore  k src dst tm (AcidState stlive) stdormant 
+    , cellKey  :: CellKey  k src dst tm stlive
       -- stdormant here because that is the actual acid state representation 
     } 
    deriving (Typeable,Generic)
@@ -121,71 +130,151 @@ data AcidCell  k src dst tm stlive stdormant = AcidCell {
 -- These functions are made acidic 
 -- They do not actually do the deletion and creation of a filepath but instead delete and create the reference to it
 
--- | DIG interface
+-- | DIG FileKey interface is where the acidFunctions live They are functions of fileKey without the conversions
 
-deleteAcidCellPath:: (Typeable stdormant, IsAcidic stdormant) => CellKey  k src dst tm stdormant ->  stdormant ->  Update CellKeyStore FileKey
-deleteAcidCellPath ck st = do 
+deleteAcidCellPathFileKey :: FileKey -> Update CellKeyStore FileKey 
+deleteAcidCellPathFileKey fk = do 
   cks@(CellKeyStore { getCellKeyStore = hsSet}) <- get 
   (void $ put $ (CellKeyStore (S.delete  fk hsSet )))
   return fk
-         where 
-           fk = (makeFileKey ck st)
-  
 
-
-insertAcidCellPath :: (Typeable stdormant, IsAcidic stdormant) => CellKey  k src dst tm stdormant ->  stdormant ->  Update CellKeyStore FileKey
-insertAcidCellPath ck st =  do 
+insertAcidCellPathFileKey :: FileKey ->  Update CellKeyStore FileKey
+insertAcidCellPathFileKey fk =  do 
   cks@(CellKeyStore { getCellKeyStore = hsSet}) <- get 
   (void $ put $ (CellKeyStore (S.insert  fk hsSet )))
   return fk
-         where 
-           fk = (makeFileKey ck st)
+
+
 
   
 
-getAcidCellPath :: (Typeable stdormant, IsAcidic stdormant) => CellKey  k src dst tm stdormant  ->  stdormant ->  Query CellKeyStore ((S.Set FileKey))
-getAcidCellPath ck st = do
+getAcidCellPathFileKey :: Query CellKeyStore ((S.Set FileKey))
+getAcidCellPathFileKey = do
   cks@(CellKeyStore { getCellKeyStore = hsSet}) <- ask
   case hsSet of 
     _
         |S.null hsSet -> return  S.empty
         | otherwise -> do 
                return  hsSet
-      where 
-        fk = (makeFileKey ck st)
-  
   
 
+$(makeAcidic ''CellKeyStore ['deleteAcidCellPathFileKey, 'insertAcidCellPathFileKey, 'getAcidCellPathFileKey])
+
+-- | DIG interface
+
+
+deleteAcidCellPath :: MonadIO m =>
+                            CellKey k src dst tm st
+                            -> AcidState (EventState DeleteAcidCellPathFileKey)
+                            -> st
+                            -> m (EventResult DeleteAcidCellPathFileKey)
+deleteAcidCellPath ck  fAcid stTarget = do 
+  update' fAcid (DeleteAcidCellPathFileKey (makeFileKey ck stTarget))
+
+
+insertAcidCellPath :: MonadIO m =>
+                            CellKey k src dst tm st
+                            -> AcidState (EventState InsertAcidCellPathFileKey)
+                            -> st
+                            -> m (EventResult InsertAcidCellPathFileKey)
+insertAcidCellPath ck fAcid stTarget =  do 
+  update' fAcid (InsertAcidCellPathFileKey (makeFileKey ck stTarget))
+
+getAcidCellPath :: MonadIO m =>
+                         CellCore
+                           t t1 t2 t3 t4 (AcidState (EventState GetAcidCellPathFileKey))
+                         -> m (EventResult GetAcidCellPathFileKey)
+getAcidCellPath (CellCore _ fAcid) = do
+  query' fAcid GetAcidCellPathFileKey
 
 -- | User Interface Defining Functions
 
--- | The 'st' in the type definition here is the AcidState that will be turned into a 
+-- | The 'st' in the type definition here is the AcidState that will be turned into a watched state
 
-insertState :: (Typeable st, IsAcidic st) =>  (AcidCell  k src dst tm stlive stdormant)  -> st -> IO (AEither (DirectedKeyRaw  k src dst tm))
-insertState = undefined 
+insertState :: (Ord k, Ord src, Ord dst, Ord tm, IsAcidic t) =>
+                     CellKey k src dst tm st
+                     -> t
+                     -> AcidCell
+                          k src dst tm t (AcidState (EventState InsertAcidCellPathFileKey))
+                     -> st
+                     -> IO (AcidState t)
+insertState ck  initialTargetState (AcidCell (CellCore tlive fAcid) key)  st = do 
+  let newStatePath = (codeCellKeyFilename ck).(getKey ck) $ st
+  void $ insertAcidCellPath ck fAcid  st
+  acidSt <- openLocalStateFrom (T.unpack newStatePath) initialTargetState 
+  tlive' <- atomically (stmInsert acidSt)
+  createCheckpoint fAcid 
+  return acidSt 
+   where 
+     stmInsert st' = do 
+       liveMap <- readTVar tlive        
+       writeTVar tlive $ M.insert (getKey ck st) st' liveMap
+
+               
+
+deleteState :: (Ord k, Ord src, Ord dst, Ord tm) =>
+                     CellKey k src dst tm st
+                     -> AcidCell
+                          k src dst tm t (AcidState (EventState DeleteAcidCellPathFileKey))
+                     -> st
+                     -> IO ()
+deleteState ck (AcidCell (CellCore tlive fAcid) key) st = do 
+  let targetStatePath = (codeCellKeyFilename ck).(getKey ck) $ st :: Text 
+      targetFP = fromText targetStatePath ::FilePath
+     
+  tlive' <- atomically stmDelete
+  void $ deleteAcidCellPath ck fAcid st
+  createCheckpoint fAcid
+  removeTree targetFP 
+      where
+        stmDelete = do 
+          liveMap <- readTVar tlive
+          writeTVar tlive $ M.delete (getKey ck st) liveMap
 
 
-deleteState :: (Typeable st, IsAcidic st) => 
-               (AcidCell  k src dst tm stlive stdormant)  -> st -> IO (AEither Bool)
-deleteState = undefined
+getState :: (Ord k, Ord src, Ord dst, Ord tm) =>
+                  CellKey k src dst tm st
+                  -> AcidCell k src dst tm t t1 -> st -> IO (Maybe (AcidState t))
+getState ck (AcidCell (CellCore tlive fAcid) key) st = do
+   stmGetIO
+      where
+        stmGetIO = do 
+          liveMap <- readTVarIO tlive
+          return $ M.lookup (getKey ck st) liveMap 
 
 
-getState :: (AcidCell  k src dst tm stlive stdormant) ->  (DirectedKeyRaw  k src dst tm) ->  IO (AEither stlive)
-getState = undefined
+
+stateFoldlWithKey ck (AcidCell (CellCore tlive fAcid) key) fldFcn seed = do 
+  liveMap <- readTVarIO tlive 
+  M.foldWithKey (fldFcn ck ) seed liveMap
+  
 
 
-queryCells ::(Monoid (f a)) => 
-             (AcidCell  k src dst tm stlive stdormant) ->  (DirectedKeyRaw  k src dst tm) ->  IO (AEither (f stlive))
-queryCells = undefined 
+initializeAcidCell :: (Ord k, Ord src, Ord dst, Ord tm, IsAcidic stlive) =>
+                            CellKey k src dst tm stlive
+                            -> stlive
+                            -> Text
+                            -> IO (AcidCell k src dst tm stlive (AcidState CellKeyStore))
+initializeAcidCell ck emptyTargetState root = do 
+ oldWorkingDir <- getWorkingDirectory
+ let acidRootPath = fromText root
+     newWorkingDir = oldWorkingDir </> acidRootPath
+ fAcidSt <- openLocalStateFrom (T.unpack root) emptyCellKeyStore 
+ setWorkingDirectory newWorkingDir -- have to wait till it gets created by open local state
+ fkSet   <-   query' fAcidSt (GetAcidCellPathFileKey)
+ let setEitherFileKeyRaw = S.map (unmakeFileKey ck) fkSet  
+ stateMap <- foldlM foldMFcn  M.empty setEitherFileKeyRaw 
+ tmap <- newTVarIO stateMap
+ return $ AcidCell (CellCore tmap fAcidSt) ck
+    where
+     foldMFcn  cellMap (Left _)   = return cellMap 
+     foldMFcn  cellMap (Right fkRaw) = do 
+       st' <- openLocalStateFrom (T.unpack.(codeCellKeyFilename ck) $ fkRaw) emptyTargetState 
+       return $ M.insert fkRaw st' cellMap 
 
--- | Initialization 
-initializeAcidCell ::  (Typeable stdormant, IsAcidic stdormant , Typeable st ,IsAcidic st,Traversable t  ) => 
-                       FilePath -> 
-                       CellKey k src dst tm stdormant -> 
-                       t st -> 
-                       IO (AcidCell k src dst tm st stdormant)
-
-initializeAcidCell = undefined
+  
+  
+  
 
 -- | Exception and Error handling
 type AEither a = Either AcidCellError a

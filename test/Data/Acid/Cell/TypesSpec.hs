@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedStrings,NoImplicitPrelude,TemplateHaskell, GeneralizedNewtypeDeriving, DeriveGeneric #-}
-{-# LANGUAGE RecordWildCards, TypeFamilies, DeriveDataTypeable #-}
+{-# LANGUAGE RecordWildCards, TypeFamilies, NoMonomorphismRestriction,DeriveDataTypeable #-}
 
 module Data.Acid.Cell.TypesSpec (main, spec) where
 -- import Data.Acid.Cell.InternalSpec hiding (main,spec)
@@ -12,6 +12,12 @@ import Language.Haskell.TH
 -- Control
 import Control.Lens
 import CorePrelude
+
+import Control.Concurrent.STM
+import Data.Foldable
+-- Containers 
+import qualified Data.Set as S
+import qualified Data.Map as M
 -- Texty Text
 import qualified Data.Text.Encoding as T
 import qualified Data.Text as T
@@ -21,6 +27,7 @@ import DirectedKeys.Types
 
 -- Local
 import Data.Acid.Cell.InternalSpec hiding (main,spec)
+import Data.Acid.Advanced   (query', update')
 import Data.Acid.Cell.Types
 import Data.Acid.Cell.TH
 
@@ -51,40 +58,53 @@ spec = do
 
        The pattern I would like to follow for creating functions is take the word 'AcidCell' and replace it with an actual type 
        as.
-jj jj jj jj jj jj jj jj jj jj jj jj jj jj jj jj jj jj jj jj jj jj jj jj jj jj jj jj
-   jj jj jj jj jj jj jj jj jj jj jj jj jj    jj jj jj jj jj jj jj jj jj jj jj jj
-      jj jj jj jj jj jj jj jj jj jj jj          jj jj jj jj jj jj jj jj jj jj
-         jj jj jj jj jj jj jj jj jj                jj jj jj jj jj jj jj jj
-            jj jj jj jj jj jj jj                      jj jj jj jj jj jj
-               jj jj jj jj jj                            jj jj jj jj
-                  jj jj jj                                  jj jj
-                     jj                                      j j
 |-}
 
 
 type TestCellKey = CellKey TestKey TestSource TestDest TestTime KeyedTestSetStore 
 type TestCellDirectedKey = (DirectedKeyRaw TestKey TestHost TestHost TestTime)
 
--- getTestCellKey :: CellKey TestKey TestSource TestDest TestTime KeyedTestSetStore 
--- getTestCellKey = CellKey tGetKey tCodeCellKeyFilename tDecodeCellKeyFilename
---     where                            -- No type synonym use, because this is going to acid state stuff
 
---       tGetKey :: KeyedTestSetStore -> (DirectedKeyRaw TestKey TestHost TestHost TestTime)
---       tGetKey = testSetKey.getKeyedTestSet 
+-- insertTestCellPath :: KeyedTestSetStore  -> Update CellKeyStore FileKey
+-- insertTestCellPath tck fAcid = insertAcidCellPath  getTestCellKey fAcid
 
---       tCodeCellKeyFilename ::  (DirectedKeyRaw TestKey TestHost TestHost TestTime) -> Text
---       tCodeCellKeyFilename = T.decodeUtf8 . parseFilename . encodeKey
+testControlFlow = do 
+  acidCell <- initializeAcidCell getTestCellKey newKeyedTestSetStore "testBS"
+  insertState getTestCellKey newKeyedTestSetStore acidCell newKeyedTestSetStore
+  stuff <- getState getTestCellKey acidCell newKeyedTestSetStore
+  deleteState getTestCellKey acidCell newKeyedTestSetStore 
+  case stuff of 
+    Nothing -> print "wheee" 
+    Just _ -> print "whoah"
 
---       tDecodeCellKeyFilename :: Text -> Either Text (DirectedKeyRaw TestKey TestHost TestHost TestTime)
---       tDecodeCellKeyFilename t = over _Left vswap (decodeKeyPart.decodeFilename.T.encodeUtf8 $ t)
-
---       vswap = T.pack -- change the string to text
+$(makeAcidCell 'getTestCellKey 'newKeyedTestSetStore ''KeyedTestSetStore)
 
 
-insertTestCellPath :: KeyedTestSetStore  -> Update CellKeyStore FileKey
-insertTestCellPath tck = insertAcidCellPath getTestCellKey tck
 
-$(buildInsertXCellPath 'getTestCellKey ''CellKeyStore)
+testControlFlowNew = do 
+  ac <- initializeKeyedTestSetStoreAC "testBS"
+  st <- insertKeyedTestSetStoreAC ac newKeyedTestSetStore
+  return st
+  
+-- $(buildInsertXCellPath 'getTestCellKey ''CellKeyStore)
+-- $(buildInsertXCellPath 'getTestCellKey ''KeyedTestSetStore)
 
-$(makeAcidicCell ''CellKeyStore)
+-- | It is always the ''CellKeyStore that gets made acidic, 
+-- the wrapper above is to reify the CellKey in order for this to be possible
+
+-- $(makeAcidicCell ''KeyedTestSetStore)
  
+-- | foldlM :: (Foldable t, Monad m) => (a -> b -> m a) -> a -> t b -> m a
+
+-- initializeKeyedTestSetStoreState ck emptyTargetState root = do
+--   st <- openLocalStateFrom root emptyCellKeyStore
+--   fkSet <- query' st (GetKeyedTestSetStoreCellPath)
+--   let setEitherDrRaw = S.map ((decodeCellKeyFilename ck).getFileKey) fkSet
+--   stateMap <- foldlM foldMFcn  M.empty setEitherDrRaw  
+--   tcc <- newTVarIO (CellCore stateMap st )
+--   return $ AcidCell tcc ck
+--    where 
+--      foldMFcn  cellMap (Left _) = return cellMap 
+--      foldMFcn  cellMap (Right fk) = do 
+--        st' <- openLocalStateFrom root emptyTargetState 
+--        return $ M.insert fk st' cellMap 
