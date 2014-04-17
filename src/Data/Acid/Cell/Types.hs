@@ -25,26 +25,22 @@ module Data.Acid.Cell.Types (AcidCellError (..)
 
 -- System 
 import Filesystem.Path.CurrentOS hiding (root)
-import Filesystem.Path hiding (root)
 import Filesystem 
-import qualified Shelly as Shelly
+
 -- Controls
 import CorePrelude
-import Control.Concurrent
 import Control.Concurrent.STM
 import Control.Monad.Reader ( ask )
 import Control.Monad.State  
-import Language.Haskell.TH
-import Language.Haskell.TH.Syntax
-import Language.Haskell.TH.Lift
+
 -- Typeclasses
 import Data.Acid
 import Data.Acid.Advanced   (update', query')
-import Data.Typeable
+
 import Data.Foldable
-import Data.Traversable
+
 import GHC.Generics
-import Data.SafeCopy        (SafeCopy, base, deriveSafeCopy)
+import Data.SafeCopy        (base, deriveSafeCopy)
 
 -- Component Libraries
 import DirectedKeys.Types
@@ -134,13 +130,13 @@ data AcidCell  k src dst tm stlive stdormant = AcidCell {
 
 deleteAcidCellPathFileKey :: FileKey -> Update CellKeyStore FileKey 
 deleteAcidCellPathFileKey fk = do 
-  cks@(CellKeyStore { getCellKeyStore = hsSet}) <- get 
+  (CellKeyStore { getCellKeyStore = hsSet}) <- get 
   (void $ put $ (CellKeyStore (S.delete  fk hsSet )))
   return fk
 
 insertAcidCellPathFileKey :: FileKey ->  Update CellKeyStore FileKey
 insertAcidCellPathFileKey fk =  do 
-  cks@(CellKeyStore { getCellKeyStore = hsSet}) <- get 
+  (CellKeyStore { getCellKeyStore = hsSet}) <- get 
   (void $ put $ (CellKeyStore (S.insert  fk hsSet )))
   return fk
 
@@ -150,7 +146,7 @@ insertAcidCellPathFileKey fk =  do
 
 getAcidCellPathFileKey :: Query CellKeyStore ((S.Set FileKey))
 getAcidCellPathFileKey = do
-  cks@(CellKeyStore { getCellKeyStore = hsSet}) <- ask
+  (CellKeyStore { getCellKeyStore = hsSet}) <- ask
   case hsSet of 
     _
         |S.null hsSet -> return  S.empty
@@ -180,12 +176,14 @@ insertAcidCellPath :: MonadIO m =>
 insertAcidCellPath ck fAcid stTarget =  do 
   update' fAcid (InsertAcidCellPathFileKey (makeFileKey ck stTarget))
 
-getAcidCellPath :: MonadIO m =>
-                         CellCore
-                           t t1 t2 t3 t4 (AcidState (EventState GetAcidCellPathFileKey))
-                         -> m (EventResult GetAcidCellPathFileKey)
-getAcidCellPath (CellCore _ fAcid) = do
-  query' fAcid GetAcidCellPathFileKey
+
+-- getAcidCellPath :: MonadIO m =>
+--                          CellCore
+--                            t t1 t2 t3 t4 (AcidState (EventState GetAcidCellPathFileKey))
+--                          -> m (EventResult GetAcidCellPathFileKey)
+
+-- getAcidCellPath (CellCore _ fAcid) = do
+--   query' fAcid GetAcidCellPathFileKey
 
 -- | User Interface Defining Functions
 
@@ -198,11 +196,11 @@ insertState :: (Ord k, Ord src, Ord dst, Ord tm, IsAcidic t) =>
                           k src dst tm t (AcidState (EventState InsertAcidCellPathFileKey))
                      -> st
                      -> IO (AcidState t)
-insertState ck  initialTargetState (AcidCell (CellCore tlive fAcid) key)  st = do 
+insertState ck  initialTargetState (AcidCell (CellCore tlive fAcid) _)  st = do 
   let newStatePath = (codeCellKeyFilename ck).(getKey ck) $ st
   void $ insertAcidCellPath ck fAcid  st
   acidSt <- openLocalStateFrom (T.unpack newStatePath) initialTargetState 
-  tlive' <- atomically (stmInsert acidSt)
+  atomically (stmInsert acidSt)
   createCheckpoint fAcid 
   return acidSt 
    where 
@@ -218,11 +216,10 @@ deleteState :: (Ord k, Ord src, Ord dst, Ord tm) =>
                           k src dst tm t (AcidState (EventState DeleteAcidCellPathFileKey))
                      -> st
                      -> IO ()
-deleteState ck (AcidCell (CellCore tlive fAcid) key) st = do 
+deleteState ck (AcidCell (CellCore tlive fAcid) _) st = do 
   let targetStatePath = (codeCellKeyFilename ck).(getKey ck) $ st :: Text 
-      targetFP = fromText targetStatePath ::FilePath
-     
-  tlive' <- atomically stmDelete
+      targetFP = fromText targetStatePath ::FilePath     
+  void $ atomically stmDelete
   void $ deleteAcidCellPath ck fAcid st
   createCheckpoint fAcid
   removeTree targetFP 
@@ -235,7 +232,7 @@ deleteState ck (AcidCell (CellCore tlive fAcid) key) st = do
 getState :: (Ord k, Ord src, Ord dst, Ord tm) =>
                   CellKey k src dst tm st
                   -> AcidCell k src dst tm t t1 -> st -> IO (Maybe (AcidState t))
-getState ck (AcidCell (CellCore tlive fAcid) key) st = do
+getState ck (AcidCell (CellCore tlive _) _) st = do
    stmGetIO
       where
         stmGetIO = do 
@@ -243,8 +240,12 @@ getState ck (AcidCell (CellCore tlive fAcid) key) st = do
           return $ M.lookup (getKey ck st) liveMap 
 
 
-
-stateFoldlWithKey ck (AcidCell (CellCore tlive fAcid) key) fldFcn seed = do 
+stateFoldlWithKey :: t6   -> AcidCell t t1 t2 t3 t4 t5
+                           -> (t6
+                               -> DirectedKeyRaw t t1 t2 t3 -> AcidState t4 -> IO b -> IO b)
+                           -> IO b
+                           -> IO b
+stateFoldlWithKey ck (AcidCell (CellCore tlive _) _) fldFcn seed = do 
   liveMap <- readTVarIO tlive 
   M.foldWithKey (fldFcn ck ) seed liveMap
   
@@ -277,7 +278,7 @@ initializeAcidCell ck emptyTargetState root = do
   
 
 -- | Exception and Error handling
-type AEither a = Either AcidCellError a
+-- type AEither a = Either AcidCellError a
 
 data AcidCellError   = InsertFail    Text 
                      | DeleteFail    Text

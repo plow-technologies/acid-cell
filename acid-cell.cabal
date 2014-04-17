@@ -4,8 +4,8 @@ Author:                 Scott Murphy <scottmurphy09@gmail.com>
 Maintainer:             Scott Murphy <scottmurphy09@gmail.com>
 License:                BSD3
 License-File:           LICENSE
--- Synopsis:               
--- Description:            
+Synopsis:               Acid State wrapper for keyed States see Readme.md for details 
+Description:            Acid State creates great statful variables for use in a database, however they are missing the granularity needed for high demand databases.
 Cabal-Version:          >= 1.10
 Build-Type:             Simple
 
