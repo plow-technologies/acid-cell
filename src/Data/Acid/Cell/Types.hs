@@ -265,8 +265,8 @@ stateFoldlWithKey ck (AcidCell (CellCore tlive _) _ _ _) fldFcn seed = do
   
 
 
-createCellCheckPointAndClose :: (SafeCopy st, SafeCopy st1) =>
-                                      t -> AcidCell t1 t2 t3 t4 st (AcidState st1) -> IO ()
+createCellCheckPointAndClose :: (Ord k, Ord src, Ord dst, Ord tm, SafeCopy st, SafeCopy st1) =>
+                                      (CellKey k src dst tm st) -> AcidCell k src dst tm  st (AcidState st1) -> IO ()
 createCellCheckPointAndClose _ (AcidCell (CellCore tlive fAcid) _ pdir rdir ) = do 
   liveMap <- readTVarIO tlive 
   void $ traverse createCheckpointAndClose liveMap
@@ -275,7 +275,10 @@ createCellCheckPointAndClose _ (AcidCell (CellCore tlive fAcid) _ pdir rdir ) = 
   setWorkingDirectory rdir
 
 
-
+archiveAndHandle :: CellKey k src dst tm st
+                          -> AcidCell k src dst tm st1 (AcidState st2)
+                          -> (FilePath -> AcidState st1 -> IO b)
+                          -> IO (Map (DirectedKeyRaw k src dst tm) b)
 archiveAndHandle ck (AcidCell (CellCore tlive fAcid) _ pDir rDir) entryGC = do 
   liveMap <- readTVarIO tlive 
   rslt <-  M.traverseWithKey gcWrapper liveMap  

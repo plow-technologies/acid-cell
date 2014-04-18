@@ -7,16 +7,18 @@ Change Log Acid-Cell
 
 *For complete history please view commit log*
 
-##Current Version 0.1.4
+##Current Version 0.1.5
 --------------------------	
 
 
-### Proposed Release 0.1.5
+### Proposed Release 0.1.6
 ----------------------------
 
 
 
-*Change History* 
+*Change History*
++ 0.1.5
+  Fixed path problems and locking problems
 + 0.1.4
   Added createcheckpoint and close
   Added Archive and Handle
