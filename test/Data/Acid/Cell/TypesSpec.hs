@@ -84,6 +84,7 @@ $(makeAcidCell 'getTestCellKey 'newKeyedTestSetStore ''KeyedTestSetStore)
 testControlFlowNew = do 
   ac <- initializeKeyedTestSetStoreAC "testBS"
   st <- insertKeyedTestSetStoreAC ac newKeyedTestSetStore
+  deleteKeyedTestSetStoreAC ac newKeyedTestSetStore
   return st
   
 -- $(buildInsertXCellPath 'getTestCellKey ''CellKeyStore)

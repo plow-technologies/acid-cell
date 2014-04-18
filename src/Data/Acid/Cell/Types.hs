@@ -14,7 +14,9 @@
 
 module Data.Acid.Cell.Types (AcidCellError (..)
                             , CellKey (..)
+                            , CellKeyStore
                             , AcidCell
+                            , DeleteAcidCellPathFileKey
                             , initializeAcidCell
                             , getState
                             , insertState
@@ -114,6 +116,8 @@ data AcidCell  k src dst tm stlive stdormant = AcidCell {
       -- stdormant here because that is the actual acid state representation 
     } 
    deriving (Typeable,Generic)
+
+
 
 
 
