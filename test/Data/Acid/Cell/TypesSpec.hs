@@ -73,18 +73,18 @@ testControlFlow = do
   insertState getTestCellKey newKeyedTestSetStore acidCell newKeyedTestSetStore
   stuff <- getState getTestCellKey acidCell newKeyedTestSetStore
   deleteState getTestCellKey acidCell newKeyedTestSetStore 
+
   case stuff of 
     Nothing -> print "wheee" 
     Just _ -> print "whoah"
 
 $(makeAcidCell 'getTestCellKey 'newKeyedTestSetStore ''KeyedTestSetStore)
 
-
-
 testControlFlowNew = do 
   ac <- initializeKeyedTestSetStoreAC "testBS"
   st <- insertKeyedTestSetStoreAC ac newKeyedTestSetStore
   deleteKeyedTestSetStoreAC ac newKeyedTestSetStore
+  createCheckpointAndCloseKeyedTestSetStoreAC ac 
   return st
   
 -- $(buildInsertXCellPath 'getTestCellKey ''CellKeyStore)

@@ -23,6 +23,7 @@ module Data.Acid.Cell.Types (AcidCellError (..)
                             , insertState
                             , deleteState
                             , stateFoldlWithKey
+                            , createCellCheckPointAndClose
                             ) where
 
 
@@ -260,13 +261,14 @@ stateFoldlWithKey ck (AcidCell (CellCore tlive _) _) fldFcn seed = do
   
 
 
-createCellCheckPointAndClose :: SafeCopy st =>
-                                      t
-                                      -> AcidCell t1 t2 t3 t4 st t5
-                                      -> IO (Map (DirectedKeyRaw t1 t2 t3 t4) ())
-createCellCheckPointAndClose ck (AcidCell (CellCore tlive fAcid) _) = do 
+createCellCheckPointAndClose :: (SafeCopy st, SafeCopy st1) =>
+                                      t -> AcidCell t1 t2 t3 t4 st (AcidState st1) -> IO ()
+createCellCheckPointAndClose _ (AcidCell (CellCore tlive fAcid) _) = do 
   liveMap <- readTVarIO tlive 
-  traverse createCheckpointAndClose liveMap
+  void $ traverse createCheckpointAndClose liveMap
+  void $ createCheckpointAndClose fAcid
+
+
 
 
 initializeAcidCell :: (Ord k, Ord src, Ord dst, Ord tm, IsAcidic stlive) =>

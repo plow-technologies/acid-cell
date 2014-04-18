@@ -29,6 +29,7 @@ allStateMakers = [ makeInitializeXAcidCell
                  , makeDeleteXAcidCell
                  , makeGetXAcidCell
                  , makeFoldlWithKeyXAcidCell
+                 , makeCreateCheckpointAndCloseXAcidCell 
                  ]
 -- The X represents the position of the incoming type in the filename 
 makeInitializeXAcidCell ::  CellKeyName -> InitializerName -> StateName -> Q Dec
@@ -83,6 +84,22 @@ makeFoldlWithKeyXAcidCell ckN _ stN = do
   where 
     foldlWithKeyAcidCellTH = (appE (varE 'stateFoldlWithKey ) (varE ckN)) 
 
+
+
 buildFoldlWithKeyName :: StateName -> Name
 buildFoldlWithKeyName stN = mkName.concat $ ["foldlWithKey", (nameBase stN), "AC"]
+  
+
+
+
+
+makeCreateCheckpointAndCloseXAcidCell :: CellKeyName -> InitializerName -> StateName -> Q Dec
+makeCreateCheckpointAndCloseXAcidCell ckN _ stN = do 
+  f <- (funD (buildCheckPointAndCloseName stN)) [(clause [] (normalB foldlWithKeyAcidCellTH) [] ) ] 
+  return f 
+  where 
+    foldlWithKeyAcidCellTH = (appE (varE 'createCellCheckPointAndClose ) (varE ckN)) 
+
+buildCheckPointAndCloseName :: StateName -> Name
+buildCheckPointAndCloseName stN = mkName.concat $ ["createCheckpointAndClose", (nameBase stN), "AC"]
   
