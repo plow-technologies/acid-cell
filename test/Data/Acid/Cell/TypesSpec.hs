@@ -7,6 +7,8 @@ import Test.Hspec
 import Data.Acid            ( AcidState, Query, Update, EventResult
                             , makeAcidic,openLocalStateFrom,  closeAcidState )
 
+import Data.Acid.Local (createCheckpointAndClose,createLocalArchive)
+import Filesystem 
 
 import Language.Haskell.TH
 -- Control
@@ -15,6 +17,9 @@ import CorePrelude
 
 import Control.Concurrent.STM
 import Data.Foldable
+
+
+
 -- Containers 
 import qualified Data.Set as S
 import qualified Data.Map as M
@@ -68,23 +73,26 @@ type TestCellDirectedKey = (DirectedKeyRaw TestKey TestHost TestHost TestTime)
 -- insertTestCellPath :: KeyedTestSetStore  -> Update CellKeyStore FileKey
 -- insertTestCellPath tck fAcid = insertAcidCellPath  getTestCellKey fAcid
 
-testControlFlow = do 
-  acidCell <- initializeAcidCell getTestCellKey newKeyedTestSetStore "testBS"
-  insertState getTestCellKey newKeyedTestSetStore acidCell newKeyedTestSetStore
-  stuff <- getState getTestCellKey acidCell newKeyedTestSetStore
-  deleteState getTestCellKey acidCell newKeyedTestSetStore 
+-- testControlFlow = do 
+--   acidCell <- initializeAcidCell getTestCellKey newKeyedTestSetStore "testBS"
+--   insertState getTestCellKey newKeyedTestSetStore acidCell newKeyedTestSetStore
+--   stuff <- getState getTestCellKey acidCell newKeyedTestSetStore
+--   deleteState getTestCellKey acidCell newKeyedTestSetStore 
 
-  case stuff of 
-    Nothing -> print "wheee" 
-    Just _ -> print "whoah"
+--   case stuff of 
+--     Nothing -> print "wheee" 
+--     Just _ -> print "whoah"
 
 $(makeAcidCell 'getTestCellKey 'newKeyedTestSetStore ''KeyedTestSetStore)
 
 testControlFlowNew = do 
+  wd <- getWorkingDirectory
   ac <- initializeKeyedTestSetStoreAC "testBS"
   st <- insertKeyedTestSetStoreAC ac newKeyedTestSetStore
-  deleteKeyedTestSetStoreAC ac newKeyedTestSetStore
+  archiveAndHandleKeyedTestSetStoreAC ac (\_ b -> return b)
+--  deleteKeyedTestSetStoreAC ac newKeyedTestSetStore
   createCheckpointAndCloseKeyedTestSetStoreAC ac 
+  setWorkingDirectory wd 
   return st
   
 -- $(buildInsertXCellPath 'getTestCellKey ''CellKeyStore)

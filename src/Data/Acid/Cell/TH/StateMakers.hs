@@ -30,6 +30,7 @@ allStateMakers = [ makeInitializeXAcidCell
                  , makeGetXAcidCell
                  , makeFoldlWithKeyXAcidCell
                  , makeCreateCheckpointAndCloseXAcidCell 
+                 , makeArchiveAndHandleXAcidCell
                  ]
 -- The X represents the position of the incoming type in the filename 
 makeInitializeXAcidCell ::  CellKeyName -> InitializerName -> StateName -> Q Dec
@@ -95,11 +96,23 @@ buildFoldlWithKeyName stN = mkName.concat $ ["foldlWithKey", (nameBase stN), "AC
 
 makeCreateCheckpointAndCloseXAcidCell :: CellKeyName -> InitializerName -> StateName -> Q Dec
 makeCreateCheckpointAndCloseXAcidCell ckN _ stN = do 
-  f <- (funD (buildCheckPointAndCloseName stN)) [(clause [] (normalB foldlWithKeyAcidCellTH) [] ) ] 
+  f <- (funD (buildCheckPointAndCloseName stN)) [(clause [] (normalB createCheckpointAndCloseAcidCellTH) [] ) ] 
   return f 
   where 
-    foldlWithKeyAcidCellTH = (appE (varE 'createCellCheckPointAndClose ) (varE ckN)) 
+    createCheckpointAndCloseAcidCellTH = (appE (varE 'createCellCheckPointAndClose ) (varE ckN)) 
 
 buildCheckPointAndCloseName :: StateName -> Name
 buildCheckPointAndCloseName stN = mkName.concat $ ["createCheckpointAndClose", (nameBase stN), "AC"]
   
+
+
+makeArchiveAndHandleXAcidCell :: CellKeyName -> InitializerName -> StateName -> Q Dec
+makeArchiveAndHandleXAcidCell ckN _ stN = do 
+  f <- (funD (buildArchiveAndHandleName stN)) [(clause [] (normalB archiveAndHandleTH) [] ) ] 
+  return f 
+  where 
+    archiveAndHandleTH = (appE (varE 'archiveAndHandle ) (varE ckN)) 
+
+
+buildArchiveAndHandleName :: StateName -> Name
+buildArchiveAndHandleName stN = mkName.concat $ ["archiveAndHandle", (nameBase stN), "AC"]

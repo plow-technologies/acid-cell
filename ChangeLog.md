@@ -19,6 +19,7 @@ Change Log Acid-Cell
 *Change History* 
 + 0.1.4
   Added createcheckpoint and close
+  Added Archive and Handle
 + 0.1.2
   Added Insert and Delete instances...
 + 0.1.1
