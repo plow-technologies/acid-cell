@@ -7,17 +7,18 @@ Change Log Acid-Cell
 
 *For complete history please view commit log*
 
-##Current Version 0.1.3
+##Current Version 0.1.4
 --------------------------	
 
 
-### Proposed Release 0.1.3
+### Proposed Release 0.1.5
 ----------------------------
 
 
 
 *Change History* 
-
++ 0.1.4
+  Added createcheckpoint and close
 + 0.1.2
   Added Insert and Delete instances...
 + 0.1.1

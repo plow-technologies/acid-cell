@@ -38,12 +38,14 @@ import Control.Monad.State
 
 -- Typeclasses
 import Data.Acid
+import Data.Acid.Local (createCheckpointAndClose,createLocalArchive)
 import Data.Acid.Advanced   (update', query')
 
 import Data.Foldable
+import Data.Traversable
 
 import GHC.Generics
-import Data.SafeCopy        (base, deriveSafeCopy)
+import Data.SafeCopy        (SafeCopy,base, deriveSafeCopy)
 
 -- Component Libraries
 import DirectedKeys.Types
@@ -139,6 +141,8 @@ deleteAcidCellPathFileKey fk = do
   (void $ put $ (CellKeyStore (S.delete  fk hsSet )))
   return fk
 
+
+-- |Note... This insert is repsert functional
 insertAcidCellPathFileKey :: FileKey ->  Update CellKeyStore FileKey
 insertAcidCellPathFileKey fk =  do 
   (CellKeyStore { getCellKeyStore = hsSet}) <- get 
@@ -256,6 +260,15 @@ stateFoldlWithKey ck (AcidCell (CellCore tlive _) _) fldFcn seed = do
   
 
 
+createCellCheckPointAndClose :: SafeCopy st =>
+                                      t
+                                      -> AcidCell t1 t2 t3 t4 st t5
+                                      -> IO (Map (DirectedKeyRaw t1 t2 t3 t4) ())
+createCellCheckPointAndClose ck (AcidCell (CellCore tlive fAcid) _) = do 
+  liveMap <- readTVarIO tlive 
+  traverse createCheckpointAndClose liveMap
+
+
 initializeAcidCell :: (Ord k, Ord src, Ord dst, Ord tm, IsAcidic stlive) =>
                             CellKey k src dst tm stlive
                             -> stlive
@@ -279,7 +292,10 @@ initializeAcidCell ck emptyTargetState root = do
        return $ M.insert fkRaw st' cellMap 
 
   
-  
+
+
+
+
   
 
 -- | Exception and Error handling
