@@ -17,6 +17,7 @@ module Data.Acid.Cell.Types (AcidCellError (..)
                             , CellKeyStore
                             , AcidCell
                             , DeleteAcidCellPathFileKey
+                            , InsertAcidCellPathFileKey
                             , initializeAcidCell
                             , getState
                             , insertState
