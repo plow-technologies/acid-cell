@@ -97,6 +97,7 @@ testControlFlowNew = do
   archiveAndHandleKeyedTestSetStoreAC ac (\_ b -> return b)
 --  deleteKeyedTestSetStoreAC ac newKeyedTestSetStore
   createCheckpointAndCloseKeyedTestSetStoreAC ac 
+  traverseWithKeyKeyedTestSetStoreAC_ ac (\ck dr ast -> fail "testFailure")
   setWorkingDirectory wd 
   return st3
   

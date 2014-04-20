@@ -23,6 +23,7 @@ module Data.Acid.Cell.Types (AcidCellError (..)
                             , insertState
                             , deleteState
                             , stateFoldlWithKey
+                            , stateTraverseWithKey_
                             , createCellCheckPointAndClose
                             , archiveAndHandle 
                             ) where
@@ -37,7 +38,7 @@ import CorePrelude
 import Control.Concurrent.STM
 import Control.Monad.Reader ( ask )
 import Control.Monad.State  
-
+import Control.Concurrent
 -- Typeclasses
 import Data.Acid
 import Data.Acid.Local (createCheckpointAndClose)
@@ -257,6 +258,8 @@ getState ck (AcidCell (CellCore tlive _) _ _ _) st = do
           return $ M.lookup (getKey ck st) liveMap 
 
 
+
+
 stateFoldlWithKey :: t6   -> AcidCell t t1 t2 t3 t4 t5
                            -> (t6
                                -> DirectedKeyRaw t t1 t2 t3 -> AcidState t4 -> IO b -> IO b)
@@ -265,7 +268,28 @@ stateFoldlWithKey :: t6   -> AcidCell t t1 t2 t3 t4 t5
 stateFoldlWithKey ck (AcidCell (CellCore tlive _) _ _ _) fldFcn seed = do 
   liveMap <- readTVarIO tlive 
   M.foldWithKey (fldFcn ck ) seed liveMap
+
+
+
+stateTraverseWithKey_ ::  t6
+                            -> AcidCell t t1 t2 t3 t4 t5
+                            -> (t6 -> DirectedKeyRaw t t1 t2 t3 -> AcidState t4 -> IO ())
+                            -> IO ()
+
+stateTraverseWithKey_ ck (AcidCell (CellCore tlive _) _ _ _) tvFcn  = do 
+  liveMap <- readTVarIO tlive 
+  M.traverseWithKey tvFcnWrp  liveMap
+  return ()
+      where
+        tvFcnWrp k a = do
+          forkIO $ tvFcn ck k a 
+          return () 
+          
+          
   
+
+
+
 
 
 createCellCheckPointAndClose :: (Ord k, Ord src, Ord dst, Ord tm, SafeCopy st, SafeCopy st1) =>
