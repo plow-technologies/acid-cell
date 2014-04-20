@@ -17,6 +17,8 @@ Change Log Acid-Cell
 
 
 *Change History*
++ 0.1.6
+  Changed stdormant to use tvar, hopefully will solve the duplicate lock problem
 + 0.1.5
   Fixed path problems and locking problems
 + 0.1.4
