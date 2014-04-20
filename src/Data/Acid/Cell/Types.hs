@@ -202,6 +202,8 @@ insertAcidCellPath ck fAcid stTarget =  do
 
 -- | The 'st' in the type definition here is the AcidState that will be turned into a watched state
 
+-- | Warning, inserting a state that is already inserted throws an exception 
+
 insertState :: (Ord k, Ord src, Ord dst, Ord tm, IsAcidic t) =>
                      CellKey k src dst tm st
                      -> t
@@ -212,8 +214,9 @@ insertState :: (Ord k, Ord src, Ord dst, Ord tm, IsAcidic t) =>
 insertState ck  initialTargetState (AcidCell (CellCore tlive tvarFAcid) _ _ _)  st = do 
   let newStatePath = (codeCellKeyFilename ck).(getKey ck) $ st
   fAcid <- readTVarIO tvarFAcid
+
   void $ insertAcidCellPath ck fAcid  st
-  acidSt <- openLocalStateFrom (T.unpack newStatePath) initialTargetState 
+  acidSt <- onException (openLocalStateFrom (T.unpack newStatePath) initialTargetState ) lockOrThere
   atomically (stmInsert acidSt)
   createCheckpoint fAcid 
   return acidSt 
@@ -221,8 +224,7 @@ insertState ck  initialTargetState (AcidCell (CellCore tlive tvarFAcid) _ _ _)  
      stmInsert st' = do 
        liveMap <- readTVar tlive        
        writeTVar tlive $ M.insert (getKey ck st) st' liveMap
-
-               
+     lockOrThere = fail "insertState Failed to insert, state locked or already exists"
 
 deleteState :: (Ord k, Ord src, Ord dst, Ord tm) =>
                      CellKey k src dst tm st

@@ -85,15 +85,20 @@ type TestCellDirectedKey = (DirectedKeyRaw TestKey TestHost TestHost TestTime)
 
 $(makeAcidCell 'getTestCellKey 'newKeyedTestSetStore ''KeyedTestSetStore)
 
-testControlFlowNew = do 
+testControlFlowNew = do   
   wd <- getWorkingDirectory
   ac <- initializeKeyedTestSetStoreAC "testBS"
-  st <- insertKeyedTestSetStoreAC ac newKeyedTestSetStore
+  print "i1"
+  st1 <- insertKeyedTestSetStoreAC ac newKeyedTestSetStore
+  st2 <- getKeyedTestSetStoreAC ac newKeyedTestSetStore     
+  st3 <- case st2 of 
+           Nothing ->  (insertKeyedTestSetStoreAC ac newKeyedTestSetStore) 
+           Just st ->  return st
   archiveAndHandleKeyedTestSetStoreAC ac (\_ b -> return b)
 --  deleteKeyedTestSetStoreAC ac newKeyedTestSetStore
   createCheckpointAndCloseKeyedTestSetStoreAC ac 
   setWorkingDirectory wd 
-  return st
+  return st3
   
 -- $(buildInsertXCellPath 'getTestCellKey ''CellKeyStore)
 -- $(buildInsertXCellPath 'getTestCellKey ''KeyedTestSetStore)
