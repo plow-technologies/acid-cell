@@ -19,6 +19,8 @@ Change Log Acid-Cell
 *Change History*
 + 0.1.6
   Changed stdormant to use tvar, hopefully will solve the duplicate lock problem
+  Added traverseState to generated functions... Allows for asynchronous error ignoring actions on threads.
+  
 + 0.1.5
   Fixed path problems and locking problems
 + 0.1.4
