@@ -21,6 +21,7 @@ module Data.Acid.Cell.Types (AcidCellError (..)
                             , initializeAcidCell
                             , getState
                             , insertState
+                            , updateState
                             , deleteState
                             , stateFoldlWithKey
                             , stateTraverseWithKey_
@@ -214,18 +215,35 @@ insertState :: (Ord k, Ord src, Ord dst, Ord tm, IsAcidic t) =>
                      -> IO (AcidState t)
 insertState ck  initialTargetState (AcidCell (CellCore tlive tvarFAcid) _ _ _)  st = do 
   let newStatePath = (codeCellKeyFilename ck).(getKey ck) $ st
+  print "getting Acid"
   fAcid <- readTVarIO tvarFAcid
-
   void $ insertAcidCellPath ck fAcid  st
+  print "opening new Acid State"
   acidSt <- onException (openLocalStateFrom (T.unpack newStatePath) initialTargetState ) lockOrThere
   atomically (stmInsert acidSt)
+  print "creating checkpoindsljsg"
   createCheckpoint fAcid 
+  atomically $ writeTVar tvarFAcid fAcid
   return acidSt 
    where 
      stmInsert st' = do 
        liveMap <- readTVar tlive        
        writeTVar tlive $ M.insert (getKey ck st) st' liveMap
      lockOrThere = fail "insertState Failed to insert, state locked or already exists"
+
+
+updateState ck  initialTargetState (AcidCell (CellCore tlive tvarFAcid) _ _ _)  acidSt st = do
+  let statePath = (codeCellKeyFilename ck).(getKey ck) $ st
+  createCheckpoint acidSt
+  atomically $ stmInsert acidSt
+   where 
+     stmInsert st' = do 
+       liveMap <- readTVar tlive        
+       writeTVar tlive $ M.insert (getKey ck st) st' liveMap
+
+
+
+
 
 deleteState :: (Ord k, Ord src, Ord dst, Ord tm) =>
                      CellKey k src dst tm st
@@ -240,6 +258,7 @@ deleteState ck (AcidCell (CellCore tlive tvarFAcid) _ _ _) st = do
   fAcid <- readTVarIO tvarFAcid
   void $ deleteAcidCellPath ck fAcid st  
   createCheckpoint fAcid
+  atomically $ writeTVar tvarFAcid fAcid
   removeTree targetFP 
       where
         stmDelete = do 
@@ -295,17 +314,15 @@ stateTraverseWithKey_ ck (AcidCell (CellCore tlive _) _ _ _) tvFcn  = do
 createCellCheckPointAndClose :: (Ord k, Ord src, Ord dst, Ord tm, SafeCopy st, SafeCopy st1) =>
                                       (CellKey k src dst tm st) -> AcidCell k src dst tm  st (AcidState st1) -> IO ()
 createCellCheckPointAndClose _ (AcidCell (CellCore tlive tvarFAcid) _ pdir rdir ) = do 
+  print "closing cells"
   liveMap <- readTVarIO tlive 
-  void $ traverse createCheckpointAndClose liveMap
+  void $ traverse closeAcidState liveMap
   setWorkingDirectory pdir
+  print "closing acid-cell"
   fAcid <- readTVarIO tvarFAcid
   void $ createCheckpointAndClose fAcid
   setWorkingDirectory rdir
 
-archiveAndHandle :: CellKey k src dst tm st
-                          -> AcidCell k src dst tm st1 (AcidState st2)
-                          -> (FilePath -> AcidState st1 -> IO b)
-                          -> IO (Map (DirectedKeyRaw k src dst tm) b)
 archiveAndHandle ck (AcidCell (CellCore tlive tvarFAcid) _ pDir rDir) entryGC = do 
   liveMap <- readTVarIO tlive 
   rslt <-  M.traverseWithKey gcWrapper liveMap  
@@ -313,7 +330,9 @@ archiveAndHandle ck (AcidCell (CellCore tlive tvarFAcid) _ pDir rDir) entryGC = 
   fAcid <- readTVarIO tvarFAcid
   createArchive fAcid
   setWorkingDirectory rDir
-  removeTree "Archive"
+  atomically $ writeTVar tvarFAcid fAcid
+  atomically $ writeTVar tlive rslt
+--  removeTree "Archive"
   return rslt
     where 
       targetStatePath dkr = fromText.(codeCellKeyFilename ck) $ dkr :: FilePath
@@ -334,9 +353,11 @@ initializeAcidCell ck emptyTargetState root = do
  parentWorkingDir <- getWorkingDirectory
  let acidRootPath = fromText root
      newWorkingDir = parentWorkingDir </> acidRootPath
+ print "working dir " >> print newWorkingDir
  fAcidSt <- openLocalStateFrom (T.unpack root) emptyCellKeyStore 
  setWorkingDirectory newWorkingDir -- have to wait till it gets created by open local state
  fkSet   <-   query' fAcidSt (GetAcidCellPathFileKey)
+ print "working keys" >> print fkSet
  let setEitherFileKeyRaw = S.map (unmakeFileKey ck) fkSet  
  stateMap <- foldlM foldMFcn  M.empty setEitherFileKeyRaw 
  tmap <- newTVarIO stateMap

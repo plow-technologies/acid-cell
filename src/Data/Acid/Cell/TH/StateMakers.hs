@@ -26,12 +26,14 @@ type StateName = Name
 allStateMakers :: [CellKeyName -> InitializerName -> StateName -> Q Dec]
 allStateMakers = [ makeInitializeXAcidCell
                  , makeInsertXAcidCell
+                 , makeUpdateXAcidCell
                  , makeDeleteXAcidCell
                  , makeGetXAcidCell
                  , makeFoldlWithKeyXAcidCell
                  , makeTraverseWithKeyXAcidCell
                  , makeCreateCheckpointAndCloseXAcidCell 
                  , makeArchiveAndHandleXAcidCell
+                   
                  ]
 -- The X represents the position of the incoming type in the filename 
 makeInitializeXAcidCell ::  CellKeyName -> InitializerName -> StateName -> Q Dec
@@ -53,6 +55,17 @@ makeInsertXAcidCell ckN initN stN = do
 
 buildInsertName :: StateName -> Name
 buildInsertName stN = mkName.concat $ ["insert", (nameBase stN), "AC"]
+
+
+makeUpdateXAcidCell ::  CellKeyName -> InitializerName -> StateName -> Q Dec
+makeUpdateXAcidCell ckN initN stN = do 
+  f <- (funD (buildUpdateName stN)) [(clause [] (normalB updateAcidCellTH) [] ) ] 
+  return f 
+  where 
+    updateAcidCellTH = appE (appE (varE 'updateState ) (varE ckN)) (varE initN)
+
+buildUpdateName :: StateName -> Name
+buildUpdateName stN = mkName.concat $ ["update", (nameBase stN), "AC"]
   
 
 makeDeleteXAcidCell ::  CellKeyName -> InitializerName -> StateName -> Q Dec
