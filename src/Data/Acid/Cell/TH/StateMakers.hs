@@ -29,8 +29,10 @@ allStateMakers = [ makeInitializeXAcidCell
                  , makeDeleteXAcidCell
                  , makeGetXAcidCell
                  , makeFoldlWithKeyXAcidCell
+                 , makeTraverseWithKeyXAcidCell
                  , makeCreateCheckpointAndCloseXAcidCell 
                  , makeArchiveAndHandleXAcidCell
+                 , makeUpdateXAcidCell                   
                  ]
 -- The X represents the position of the incoming type in the filename 
 makeInitializeXAcidCell ::  CellKeyName -> InitializerName -> StateName -> Q Dec
@@ -52,6 +54,17 @@ makeInsertXAcidCell ckN initN stN = do
 
 buildInsertName :: StateName -> Name
 buildInsertName stN = mkName.concat $ ["insert", (nameBase stN), "AC"]
+
+
+makeUpdateXAcidCell ::  CellKeyName -> InitializerName -> StateName -> Q Dec
+makeUpdateXAcidCell ckN initN stN = do 
+  f <- (funD (buildUpdateName stN)) [(clause [] (normalB updateAcidCellTH) [] ) ] 
+  return f 
+  where 
+    updateAcidCellTH = appE (appE (varE 'updateState ) (varE ckN)) (varE initN)
+
+buildUpdateName :: StateName -> Name
+buildUpdateName stN = mkName.concat $ ["update", (nameBase stN), "AC"]
   
 
 makeDeleteXAcidCell ::  CellKeyName -> InitializerName -> StateName -> Q Dec
@@ -89,6 +102,20 @@ makeFoldlWithKeyXAcidCell ckN _ stN = do
 
 buildFoldlWithKeyName :: StateName -> Name
 buildFoldlWithKeyName stN = mkName.concat $ ["foldlWithKey", (nameBase stN), "AC"]
+  
+
+
+makeTraverseWithKeyXAcidCell ::  CellKeyName -> InitializerName -> StateName -> Q Dec
+makeTraverseWithKeyXAcidCell ckN _ stN = do 
+  f <- (funD (buildTraverseWithKeyName stN)) [(clause [] (normalB traverseWithKeyAcidCellTH) [] ) ] 
+  return f 
+  where 
+    traverseWithKeyAcidCellTH = (appE (varE 'stateTraverseWithKey_ ) (varE ckN)) 
+
+
+
+buildTraverseWithKeyName :: StateName -> Name
+buildTraverseWithKeyName stN = mkName.concat $ ["traverseWithKey", (nameBase stN), "AC_"]
   
 
 
