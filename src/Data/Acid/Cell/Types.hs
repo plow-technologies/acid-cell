@@ -232,8 +232,8 @@ insertState ck  initialTargetState (AcidCell (CellCore tlive tvarFAcid) _ _ _)  
      lockOrThere = fail "insertState Failed to insert, state locked or already exists"
 
 
-updateState ck  initialTargetState (AcidCell (CellCore tlive tvarFAcid) _ _ _)  acidSt st = do
-  let statePath = (codeCellKeyFilename ck).(getKey ck) $ st
+updateState ck  initialTargetState (AcidCell (CellCore tlive tvarFAcid) _ pdir rdir )  acidSt st = do
+  let statePath = fromText.(codeCellKeyFilename ck).(getKey ck) $ st
   createCheckpoint acidSt
   atomically $ stmInsert acidSt
    where 
@@ -252,7 +252,7 @@ deleteState :: (Ord k, Ord src, Ord dst, Ord tm) =>
                      -> st
                      -> IO ()
 deleteState ck (AcidCell (CellCore tlive tvarFAcid) _ _ _) st = do 
-  let targetStatePath = (codeCellKeyFilename ck).(getKey ck) $ st :: Text 
+  let targetStatePath = (codeCellKeyFilename ck).(getKey ck) $ st 
       targetFP = fromText targetStatePath ::FilePath       
   void $ atomically stmDelete
   fAcid <- readTVarIO tvarFAcid

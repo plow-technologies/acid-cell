@@ -26,14 +26,13 @@ type StateName = Name
 allStateMakers :: [CellKeyName -> InitializerName -> StateName -> Q Dec]
 allStateMakers = [ makeInitializeXAcidCell
                  , makeInsertXAcidCell
-                 , makeUpdateXAcidCell
                  , makeDeleteXAcidCell
                  , makeGetXAcidCell
                  , makeFoldlWithKeyXAcidCell
                  , makeTraverseWithKeyXAcidCell
                  , makeCreateCheckpointAndCloseXAcidCell 
                  , makeArchiveAndHandleXAcidCell
-                   
+                 , makeUpdateXAcidCell                   
                  ]
 -- The X represents the position of the incoming type in the filename 
 makeInitializeXAcidCell ::  CellKeyName -> InitializerName -> StateName -> Q Dec
