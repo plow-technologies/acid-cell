@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedStrings,NoImplicitPrelude,TemplateHaskell, GeneralizedNewtypeDeriving, DeriveGeneric #-}
-{-# LANGUAGE RecordWildCards, TypeFamilies,DeriveDataTypeable #-}
+{-# LANGUAGE RecordWildCards, TypeFamilies,DeriveDataTypeable,ScopedTypeVariables #-}
 
 {-| 
 
@@ -35,11 +35,12 @@ import Filesystem.Path.CurrentOS hiding (root)
 import Filesystem 
 
 -- Controls
-import CorePrelude
+import CorePrelude hiding (try)
 import Control.Concurrent.STM
 import Control.Monad.Reader ( ask )
 import Control.Monad.State  
 import Control.Concurrent
+import Control.Exception
 -- Typeclasses
 import Data.Acid
 import Data.Acid.Local (createCheckpointAndClose)
@@ -215,21 +216,21 @@ insertState :: (Ord k, Ord src, Ord dst, Ord tm, IsAcidic t) =>
                      -> IO (AcidState t)
 insertState ck  initialTargetState (AcidCell (CellCore tlive tvarFAcid) _ _ _)  st = do 
   let newStatePath = (codeCellKeyFilename ck).(getKey ck) $ st
-  print "getting Acid"
+  void $ when (newStatePath == "") (fail "insertState --> Cell key led to empty state path")
   fAcid <- readTVarIO tvarFAcid
   void $ insertAcidCellPath ck fAcid  st
-  print "opening new Acid State"
-  acidSt <- onException (openLocalStateFrom (T.unpack newStatePath) initialTargetState ) lockOrThere
-  atomically (stmInsert acidSt)
-  print "creating checkpoindsljsg"
-  createCheckpoint fAcid 
-  atomically $ writeTVar tvarFAcid fAcid
-  return acidSt 
+
+  eacidSt <- try (openLocalStateFrom (T.unpack newStatePath) initialTargetState )  
+  either (\(e::IOException)  -> lockOrThere e newStatePath) (\acidSt -> do
+                                atomically (stmInsert acidSt)                                
+                                createCheckpoint fAcid 
+                                atomically $ writeTVar tvarFAcid fAcid
+                                return acidSt ) eacidSt
    where 
      stmInsert st' = do 
        liveMap <- readTVar tlive        
        writeTVar tlive $ M.insert (getKey ck st) st' liveMap
-     lockOrThere = fail "insertState Failed to insert, state locked or already exists"
+     lockOrThere e fp = print e >> print e >> fail  "insertState Failed to insert! State locked or already exists"
 
 
 updateState ck  initialTargetState (AcidCell (CellCore tlive tvarFAcid) _ pdir rdir )  acidSt st = do
@@ -314,15 +315,20 @@ stateTraverseWithKey_ ck (AcidCell (CellCore tlive _) _ _ _) tvFcn  = do
 createCellCheckPointAndClose :: (Ord k, Ord src, Ord dst, Ord tm, SafeCopy st, SafeCopy st1) =>
                                       (CellKey k src dst tm st) -> AcidCell k src dst tm  st (AcidState st1) -> IO ()
 createCellCheckPointAndClose _ (AcidCell (CellCore tlive tvarFAcid) _ pdir rdir ) = do 
-  print "closing cells"
+
   liveMap <- readTVarIO tlive 
   void $ traverse closeAcidState liveMap
   setWorkingDirectory pdir
-  print "closing acid-cell"
+
   fAcid <- readTVarIO tvarFAcid
   void $ createCheckpointAndClose fAcid
   setWorkingDirectory rdir
 
+
+archiveAndHandle :: CellKey k src dst tm st
+                          -> AcidCell k src dst tm st1 (AcidState st2)
+                          -> (FilePath -> AcidState st1 -> IO (AcidState st1))
+                          -> IO (Map (DirectedKeyRaw k src dst tm) (AcidState st1))
 archiveAndHandle ck (AcidCell (CellCore tlive tvarFAcid) _ pDir rDir) entryGC = do 
   liveMap <- readTVarIO tlive 
   rslt <-  M.traverseWithKey gcWrapper liveMap  
@@ -353,11 +359,11 @@ initializeAcidCell ck emptyTargetState root = do
  parentWorkingDir <- getWorkingDirectory
  let acidRootPath = fromText root
      newWorkingDir = parentWorkingDir </> acidRootPath
- print "working dir " >> print newWorkingDir
+
  fAcidSt <- openLocalStateFrom (T.unpack root) emptyCellKeyStore 
  setWorkingDirectory newWorkingDir -- have to wait till it gets created by open local state
  fkSet   <-   query' fAcidSt (GetAcidCellPathFileKey)
- print "working keys" >> print fkSet
+
  let setEitherFileKeyRaw = S.map (unmakeFileKey ck) fkSet  
  stateMap <- foldlM foldMFcn  M.empty setEitherFileKeyRaw 
  tmap <- newTVarIO stateMap
