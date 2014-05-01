@@ -356,19 +356,20 @@ initializeAcidCell ck emptyTargetState root = do
  parentWorkingDir <- getWorkingDirectory
  let acidRootPath = fromText root
      newWorkingDir = acidRootPath
-
- fAcidSt <- openLocalStateFrom (encodeString  (parentWorkingDir </> acidRootPath)) emptyCellKeyStore 
+     fpr           = (parentWorkingDir </> acidRootPath)
+ fAcidSt <- openLocalStateFrom (encodeString fpr ) emptyCellKeyStore 
  fkSet   <-   query' fAcidSt (GetAcidCellPathFileKey)
 
  let setEitherFileKeyRaw = S.map (unmakeFileKey ck) fkSet  
- stateMap <- foldlM foldMFcn  M.empty setEitherFileKeyRaw 
+ stateMap <- foldlM (foldMFcn fpr) M.empty setEitherFileKeyRaw 
  tmap <- newTVarIO stateMap
  tvarFAcid <- newTVarIO fAcidSt
  return $ AcidCell (CellCore tmap tvarFAcid) ck parentWorkingDir newWorkingDir
     where
-     foldMFcn  cellMap (Left _)   = return cellMap 
-     foldMFcn  cellMap (Right fkRaw) = do 
-       st' <- openLocalStateFrom (T.unpack.(codeCellKeyFilename ck) $ fkRaw) emptyTargetState 
+     foldMFcn r cellMap (Left _)   = return cellMap 
+     foldMFcn r cellMap (Right fkRaw) = do 
+       let fpKey = r </> (fromText.(codeCellKeyFilename ck) $ fkRaw) 
+       st' <- openLocalStateFrom (encodeString fpKey) emptyTargetState 
        return $ M.insert fkRaw st' cellMap 
 
   
