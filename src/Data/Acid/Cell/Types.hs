@@ -214,13 +214,12 @@ insertState :: (Ord k, Ord src, Ord dst, Ord tm, IsAcidic t) =>
                           k src dst tm t (AcidState (EventState InsertAcidCellPathFileKey))
                      -> st
                      -> IO (AcidState t)
-insertState ck  initialTargetState (AcidCell (CellCore tlive tvarFAcid) _ _ _)  st = do 
+insertState ck  initialTargetState (AcidCell (CellCore tlive tvarFAcid) _ pdir rdir)  st = do 
   let newStatePath = (codeCellKeyFilename ck).(getKey ck) $ st
-  void $ when (newStatePath == "") (fail "insertState --> Cell key led to empty state path")
+  fullStatePath <- makeWorkingStatePath pdir rdir newStatePath
   fAcid <- readTVarIO tvarFAcid
-  void $ insertAcidCellPath ck fAcid  st
-
-  eacidSt <- try (openLocalStateFrom (T.unpack newStatePath) initialTargetState )  
+  void $ insertAcidCellPath ck fAcid  st  
+  eacidSt <- try (openLocalStateFrom (encodeString fullStatePath) initialTargetState )  
   either (\(e::IOException)  -> lockOrThere e newStatePath) (\acidSt -> do
                                 atomically (stmInsert acidSt)                                
                                 createCheckpoint fAcid 
@@ -233,9 +232,18 @@ insertState ck  initialTargetState (AcidCell (CellCore tlive tvarFAcid) _ _ _)  
      lockOrThere e fp = print e >> print e >> fail  "insertState Failed to insert! State locked or already exists"
 
 
+-- | Generate the state path from the full path of the working directory... pdir 
+--                                the path piece of the filekeystate... rdir 
+--                                the path piece of the cell        ... nsp
+                                 
+makeWorkingStatePath pdir rdir nsp = do 
+    void $ when (nsp == "") (fail "--> Cell key led to empty state path")
+    return $ pdir </> rdir </> (fromText nsp)
+
+
 updateState ck  initialTargetState (AcidCell (CellCore tlive tvarFAcid) _ pdir rdir )  acidSt st = do
-  let statePath = fromText.(codeCellKeyFilename ck).(getKey ck) $ st
-  createCheckpoint acidSt
+--  let statePath = fromText.(codeCellKeyFilename ck).(getKey ck) $ st
+  createCheckpoint acidSt 
   atomically $ stmInsert acidSt
    where 
      stmInsert st' = do 
@@ -306,23 +314,14 @@ stateTraverseWithKey_ ck (AcidCell (CellCore tlive _) _ _ _) tvFcn  = do
           return () 
           
           
-  
-
-
-
-
 
 createCellCheckPointAndClose :: (Ord k, Ord src, Ord dst, Ord tm, SafeCopy st, SafeCopy st1) =>
                                       (CellKey k src dst tm st) -> AcidCell k src dst tm  st (AcidState st1) -> IO ()
 createCellCheckPointAndClose _ (AcidCell (CellCore tlive tvarFAcid) _ pdir rdir ) = do 
-
   liveMap <- readTVarIO tlive 
   void $ traverse closeAcidState liveMap
-  setWorkingDirectory pdir
-
   fAcid <- readTVarIO tvarFAcid
   void $ createCheckpointAndClose fAcid
-  setWorkingDirectory rdir
 
 
 archiveAndHandle :: CellKey k src dst tm st
@@ -332,10 +331,8 @@ archiveAndHandle :: CellKey k src dst tm st
 archiveAndHandle ck (AcidCell (CellCore tlive tvarFAcid) _ pDir rDir) entryGC = do 
   liveMap <- readTVarIO tlive 
   rslt <-  M.traverseWithKey gcWrapper liveMap  
-  setWorkingDirectory pDir
   fAcid <- readTVarIO tvarFAcid
   createArchive fAcid
-  setWorkingDirectory rDir
   atomically $ writeTVar tvarFAcid fAcid
   atomically $ writeTVar tlive rslt
 --  removeTree "Archive"
@@ -358,10 +355,9 @@ initializeAcidCell :: (Ord k, Ord src, Ord dst, Ord tm, IsAcidic stlive) =>
 initializeAcidCell ck emptyTargetState root = do 
  parentWorkingDir <- getWorkingDirectory
  let acidRootPath = fromText root
-     newWorkingDir = parentWorkingDir </> acidRootPath
+     newWorkingDir = acidRootPath
 
- fAcidSt <- openLocalStateFrom (T.unpack root) emptyCellKeyStore 
- setWorkingDirectory newWorkingDir -- have to wait till it gets created by open local state
+ fAcidSt <- openLocalStateFrom (encodeString  (parentWorkingDir </> acidRootPath)) emptyCellKeyStore 
  fkSet   <-   query' fAcidSt (GetAcidCellPathFileKey)
 
  let setEitherFileKeyRaw = S.map (unmakeFileKey ck) fkSet  
@@ -376,8 +372,6 @@ initializeAcidCell ck emptyTargetState root = do
        return $ M.insert fkRaw st' cellMap 
 
   
-
-
 
 
   
