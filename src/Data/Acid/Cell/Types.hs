@@ -260,7 +260,7 @@ deleteState :: (Ord k, Ord src, Ord dst, Ord tm) =>
                           k src dst tm t (AcidState (EventState DeleteAcidCellPathFileKey))
                      -> st
                      -> IO ()
-deleteState ck (AcidCell (CellCore tlive tvarFAcid) _ _ _) st = do 
+deleteState ck (AcidCell (CellCore tlive tvarFAcid) _ pdir rdir) st = do 
   let targetStatePath = (codeCellKeyFilename ck).(getKey ck) $ st 
       targetFP = fromText targetStatePath ::FilePath       
   void $ atomically stmDelete
@@ -268,7 +268,8 @@ deleteState ck (AcidCell (CellCore tlive tvarFAcid) _ _ _) st = do
   void $ deleteAcidCellPath ck fAcid st  
   createCheckpoint fAcid
   atomically $ writeTVar tvarFAcid fAcid
-  removeTree targetFP 
+  np <- (makeWorkingStatePath pdir rdir targetStatePath)
+  removeTree np
       where
         stmDelete = do 
           liveMap <- readTVar tlive

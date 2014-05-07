@@ -18,32 +18,31 @@ module Data.Acid.Cell.InternalSpec (main
                                    , getTestCellKey
                                     ,spec ) where 
 
-
 import CorePrelude
 import Control.Lens
 import Control.Monad.Reader ( ask )
 import Control.Monad.State  ( get, put )
 import Data.Acid            ( AcidState, Query, Update, EventResult
                             , makeAcidic,openLocalStateFrom,  closeAcidState )
+
 import Test.Hspec
 import GHC.Generics
+
 import qualified Data.Serialize as Ser
 
 import Data.Typeable
 import qualified Data.Set as S
 
-
 import Data.SafeCopy        ( base, deriveSafeCopy )
-
 
 -- Texty Text
 import qualified Data.Text.Encoding as T
 import qualified Data.Text as T
+
 -- PlowSpecific
 import DirectedKeys
 import DirectedKeys.Types
 import Data.Acid.Cell.Types
-
 
 main :: IO ()
 main = hspec spec

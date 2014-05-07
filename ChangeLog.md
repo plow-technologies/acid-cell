@@ -19,8 +19,8 @@ Change Log Acid-Cell
 *Change History*
 
 + 0.1.7
-
-
+  Changed to use full path names
+  Alarm State no longer admits empty keys
 + 0.1.6
   Changed stdormant to use tvar, hopefully will solve the duplicate lock problem
   Added traverseState to generated functions... Allows for asynchronous error ignoring actions on threads.
