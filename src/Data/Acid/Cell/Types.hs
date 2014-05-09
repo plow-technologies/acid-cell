@@ -341,7 +341,7 @@ archiveAndHandle ck (AcidCell (CellCore tlive tvarFAcid) _ pDir rDir) entryGC = 
     where 
       targetStatePath dkr = fromText.(codeCellKeyFilename ck) $ dkr :: FilePath
       gcWrapper dkr st = do
-        let stateLocalFP = pDir </> rDir </> (targetStatePath dkr)
+        let stateLocalFP = (targetStatePath dkr)
         void $ (createArchive st)  
         rslt <- entryGC stateLocalFP st
         return rslt

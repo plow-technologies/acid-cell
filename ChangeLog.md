@@ -7,17 +7,19 @@ Change Log Acid-Cell
 
 *For complete history please view commit log*
 
-##Current Version 0.1.7
+##Current Version 0.1.9
 --------------------------	
 
 
-### Proposed Release 0.1.8
+### Proposed Release 0.1.10
 ----------------------------
 
 
 
 *Change History*
-
++ 0.1.9
+  File Paths resolved
+  be very careful about changing, the reason there is nothing in archiveAndHandle for filepaths is on purpose.
 + 0.1.7
   Changed to use full path names
   Alarm State no longer admits empty keys
