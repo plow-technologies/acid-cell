@@ -17,6 +17,9 @@ Change Log Acid-Cell
 
 
 *Change History*
++ 0.1.10
+  added exception handling in a lot of places including all traversals
+  added strictness annotations to all recordtypes
 + 0.1.9
   File Paths resolved
   be very careful about changing, the reason there is nothing in archiveAndHandle for filepaths is on purpose.

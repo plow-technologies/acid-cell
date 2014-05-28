@@ -35,7 +35,7 @@ import Filesystem.Path.CurrentOS hiding (root)
 import Filesystem 
 
 -- Controls
-import CorePrelude hiding (try)
+import CorePrelude hiding (try,onException)
 import Control.Concurrent.STM
 import Control.Monad.Reader ( ask )
 import Control.Monad.State  
@@ -100,8 +100,8 @@ unmakeFileKey ck s = (decodeCellKeyFilename ck).getFileKey $ s
 -- Dormant means currently not loaded
 
 data CellCore  k src dst tm tvlive stdormant = CellCore { 
-       ccLive     :: TVar (M.Map (DirectedKeyRaw  k src dst tm) tvlive )
-      ,ccDormant :: TVar stdormant
+      ccLive     :: ! (TVar (M.Map (DirectedKeyRaw  k src dst tm) tvlive ))
+      ,ccDormant :: !(TVar stdormant)
     }
 
 newtype CellKeyStore  = CellKeyStore { getCellKeyStore :: (S.Set FileKey)}
@@ -119,10 +119,10 @@ type TCellCore  k src dst tm stlive stdormant =  (CellCore  k src dst tm  stlive
 
 
 data AcidCell  k src dst tm stlive stdormant = AcidCell { 
-      cellCore :: TCellCore  k src dst tm (AcidState stlive) stdormant 
-    , cellKey  :: CellKey  k src dst tm stlive
-    , cellParentFP :: FilePath -- /root/otherstuff/parentofopenlocalstatefromdir
-    , cellRootFP :: FilePath -- /root/otherstuff/parentofopenlocalstatefromdir/openLocalStateFromdir
+      cellCore :: !(TCellCore  k src dst tm (AcidState stlive) stdormant )
+    , cellKey  :: !(CellKey  k src dst tm stlive)
+    , cellParentFP :: !FilePath -- /root/otherstuff/parentofopenlocalstatefromdir
+    , cellRootFP :: !FilePath -- /root/otherstuff/parentofopenlocalstatefromdir/openLocalStateFromdir
       -- stdormant here because that is the actual acid state representation 
     } 
    deriving (Typeable,Generic)
@@ -311,7 +311,7 @@ stateTraverseWithKey_ ck (AcidCell (CellCore tlive _) _ _ _) tvFcn  = do
   return ()
       where
         tvFcnWrp k a = do
-          forkIO $ tvFcn ck k a 
+          void $ forkFinally ( tvFcn ck k a) (\e -> either (\e' -> print e') (\_ -> return () ) e )
           return () 
           
           
@@ -320,9 +320,12 @@ createCellCheckPointAndClose :: (Ord k, Ord src, Ord dst, Ord tm, SafeCopy st, S
                                       (CellKey k src dst tm st) -> AcidCell k src dst tm  st (AcidState st1) -> IO ()
 createCellCheckPointAndClose _ (AcidCell (CellCore tlive tvarFAcid) _ pdir rdir ) = do 
   liveMap <- readTVarIO tlive 
-  void $ traverse closeAcidState liveMap
+  void $ traverse (\st -> (onException (closeAcidState st) (print "error closing state") )) liveMap
   fAcid <- readTVarIO tvarFAcid
   void $ createCheckpointAndClose fAcid
+
+
+
 
 
 archiveAndHandle :: CellKey k src dst tm st
@@ -331,7 +334,7 @@ archiveAndHandle :: CellKey k src dst tm st
                           -> IO (Map (DirectedKeyRaw k src dst tm) (AcidState st1))
 archiveAndHandle ck (AcidCell (CellCore tlive tvarFAcid) _ pDir rDir) entryGC = do 
   liveMap <- readTVarIO tlive 
-  rslt <-  M.traverseWithKey gcWrapper liveMap  
+  rslt <-  M.traverseWithKey (\dkr st -> onException (gcWrapper dkr st) (print "error archviing"))  liveMap  
   fAcid <- readTVarIO tvarFAcid
   createArchive fAcid
   atomically $ writeTVar tvarFAcid fAcid
@@ -342,7 +345,8 @@ archiveAndHandle ck (AcidCell (CellCore tlive tvarFAcid) _ pDir rDir) entryGC = 
       targetStatePath dkr = fromText.(codeCellKeyFilename ck) $ dkr :: FilePath
       gcWrapper dkr st = do
         let stateLocalFP = (targetStatePath dkr)
-        void $ (createArchive st)  
+        void $ createArchive st 
+
         rslt <- entryGC stateLocalFP st
         return rslt
 --      targetFP =  targetStatePath ::FilePath     
@@ -351,29 +355,40 @@ archiveAndHandle ck (AcidCell (CellCore tlive tvarFAcid) _ pDir rDir) entryGC = 
 initializeAcidCell :: (Ord k, Ord src, Ord dst, Ord tm, IsAcidic stlive) =>
                             CellKey k src dst tm stlive
                             -> stlive
-                            -> Text
-                            -> IO (AcidCell k src dst tm stlive (AcidState CellKeyStore))
+                            -> Text                            -> IO (AcidCell k src dst tm stlive (AcidState CellKeyStore))
 initializeAcidCell ck emptyTargetState root = do 
+ print "get WD"
  parentWorkingDir <- getWorkingDirectory
  let acidRootPath = fromText root
      newWorkingDir = acidRootPath
      fpr           = (parentWorkingDir </> acidRootPath)
+ print "get fAcidSt"
  fAcidSt <- openLocalStateFrom (encodeString fpr ) emptyCellKeyStore 
+ print "get fkSet"
  fkSet   <-   query' fAcidSt (GetAcidCellPathFileKey)
-
+ print "get unmakeThing"
  let setEitherFileKeyRaw = S.map (unmakeFileKey ck) fkSet  
+ print "get fkSet"
  stateMap <- foldlM (foldMFcn fpr) M.empty setEitherFileKeyRaw 
+ print "get stateMap"
  tmap <- newTVarIO stateMap
+ print "get tvarFAcid"
  tvarFAcid <- newTVarIO fAcidSt
+ print "get acidcell"
  return $ AcidCell (CellCore tmap tvarFAcid) ck parentWorkingDir newWorkingDir
     where
      foldMFcn r cellMap (Left _)   = return cellMap 
      foldMFcn r cellMap (Right fkRaw) = do 
        let fpKey = r </> (fromText.(codeCellKeyFilename ck) $ fkRaw) 
-       st' <- openLocalStateFrom (encodeString fpKey) emptyTargetState 
-       return $ M.insert fkRaw st' cellMap 
+       print "opening Local State From"
+       est' <- openCKSt fpKey emptyTargetState
+       print "done"
+       return $ either (\_-> cellMap ) (\st' -> M.insert fkRaw st' cellMap ) est'
 
-  
+
+openCKSt :: IsAcidic st =>
+             FilePath -> st -> IO (Either SomeException (AcidState st))
+openCKSt fpKey emptyTargetState = try $ openLocalStateFrom (encodeString fpKey) emptyTargetState 
 
 
   
@@ -381,6 +396,6 @@ initializeAcidCell ck emptyTargetState root = do
 -- | Exception and Error handling
 -- type AEither a = Either AcidCellError a
 
-data AcidCellError   = InsertFail    Text 
-                     | DeleteFail    Text
-                     | StateNotFound Text
+data AcidCellError   = InsertFail    !Text 
+                     | DeleteFail    !Text
+                     | StateNotFound !Text
