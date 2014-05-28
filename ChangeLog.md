@@ -7,11 +7,11 @@ Change Log Acid-Cell
 
 *For complete history please view commit log*
 
-##Current Version 0.1.9
+##Current Version 0.1.10
 --------------------------	
 
 
-### Proposed Release 0.1.10
+### Proposed Release 0.1.11
 ----------------------------
 
 

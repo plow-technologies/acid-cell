@@ -380,9 +380,7 @@ initializeAcidCell ck emptyTargetState root = do
      foldMFcn r cellMap (Left _)   = return cellMap 
      foldMFcn r cellMap (Right fkRaw) = do 
        let fpKey = r </> (fromText.(codeCellKeyFilename ck) $ fkRaw) 
-       print "opening Local State From"
        est' <- openCKSt fpKey emptyTargetState
-       print "done"
        return $ either (\_-> cellMap ) (\st' -> M.insert fkRaw st' cellMap ) est'
 
 
