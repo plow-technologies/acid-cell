@@ -35,6 +35,7 @@ import Filesystem.Path.CurrentOS hiding (root)
 import Filesystem 
 
 -- Controls
+import Prelude (show, (++) )
 import CorePrelude hiding (try,onException)
 import Control.Concurrent.STM
 import Control.Monad.Reader ( ask )
@@ -207,19 +208,19 @@ insertAcidCellPath ck fAcid stTarget =  do
 
 -- | Warning, inserting a state that is already inserted throws an exception 
 
-insertState :: (Ord k, Ord src, Ord dst, Ord tm, IsAcidic t) =>
+insertState :: (Ord k, Ord src, Ord dst, Ord tm, IsAcidic t,IsAcidic st) =>
                      CellKey k src dst tm st
                      -> t
                      -> AcidCell
-                          k src dst tm t (AcidState (EventState InsertAcidCellPathFileKey))
+                          k src dst tm st (AcidState (EventState InsertAcidCellPathFileKey))
                      -> st
-                     -> IO (AcidState t)
+                     -> IO (AcidState st)
 insertState ck  initialTargetState (AcidCell (CellCore tlive tvarFAcid) _ pdir rdir)  st = do 
   let newStatePath = (codeCellKeyFilename ck).(getKey ck) $ st
   fullStatePath <- makeWorkingStatePath pdir rdir newStatePath
   fAcid <- readTVarIO tvarFAcid
   void $ insertAcidCellPath ck fAcid  st  
-  eacidSt <- try (openLocalStateFrom (encodeString fullStatePath) initialTargetState )  
+  eacidSt <- try (openLocalStateFrom (encodeString fullStatePath) st )  
   either (\(e::IOException)  -> lockOrThere e newStatePath) (\acidSt -> do
                                 atomically (stmInsert acidSt)                                
                                 createCheckpoint fAcid 
@@ -229,7 +230,7 @@ insertState ck  initialTargetState (AcidCell (CellCore tlive tvarFAcid) _ pdir r
      stmInsert st' = do 
        liveMap <- readTVar tlive        
        writeTVar tlive $ M.insert (getKey ck st) st' liveMap
-     lockOrThere e fp = print e >> print e >> fail  "insertState Failed to insert! State locked or already exists"
+     lockOrThere e fp = fail (("insertState Failed to insert! State locked or already exists" ++ (show e)))
 
 
 -- | Generate the state path from the full path of the working directory... pdir 
@@ -377,9 +378,10 @@ initializeAcidCell ck emptyTargetState root = do
  print "get acidcell"
  return $ AcidCell (CellCore tmap tvarFAcid) ck parentWorkingDir newWorkingDir
     where
-     foldMFcn r cellMap (Left _)   = return cellMap 
+     foldMFcn r cellMap (Left e)   = print "cellmap err" >> print e >> return cellMap 
      foldMFcn r cellMap (Right fkRaw) = do 
        let fpKey = r </> (fromText.(codeCellKeyFilename ck) $ fkRaw) 
+       print fpKey
        est' <- openCKSt fpKey emptyTargetState
        return $ either (\_-> cellMap ) (\st' -> M.insert fkRaw st' cellMap ) est'
 

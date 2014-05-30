@@ -7,16 +7,20 @@ Change Log Acid-Cell
 
 *For complete history please view commit log*
 
-##Current Version 0.1.10
+##Current Version 0.1.11
 --------------------------	
 
 
-### Proposed Release 0.1.11
+### Proposed Release 0.1.12
 ----------------------------
 
 
 
 *Change History*
++ 0.1.12
+  changed insertState to use incoming st
++ 0.1.11
+  added specificity to err messages
 + 0.1.10
   added exception handling in a lot of places including all traversals
   added strictness annotations to all recordtypes
