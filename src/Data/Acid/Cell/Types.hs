@@ -316,9 +316,10 @@ stateTraverseWithKey_ ck (AcidCell (CellCore tlive _) _ _ _) tvFcn  = do
           return () 
           
           
+createCellCheckPointAndClose :: forall t t1 t2 t3 t4 st st1.
+                                (SafeCopy st1, Typeable st1) =>
+                                t -> AcidCell t1 t2 t3 t4 st (AcidState st1) -> IO ()
 
-createCellCheckPointAndClose :: (Ord k, Ord src, Ord dst, Ord tm, SafeCopy st, SafeCopy st1) =>
-                                      (CellKey k src dst tm st) -> AcidCell k src dst tm  st (AcidState st1) -> IO ()
 createCellCheckPointAndClose _ (AcidCell (CellCore tlive tvarFAcid) _ pdir rdir ) = do 
   liveMap <- readTVarIO tlive 
   void $ traverse (\st -> (onException (closeAcidState st) (print "error closing state") )) liveMap

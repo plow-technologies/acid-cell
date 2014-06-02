@@ -18,6 +18,7 @@ Change Log Acid-Cell
 
 *Change History*
 + 0.1.12
+  removed local branch dep on safecopy	
   changed insertState to use incoming st
 + 0.1.11
   added specificity to err messages
