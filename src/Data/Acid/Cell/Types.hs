@@ -241,7 +241,6 @@ makeWorkingStatePath pdir rdir nsp = do
     void $ when (nsp == "") (fail "--> Cell key led to empty state path")
     return $ pdir </> rdir </> (fromText nsp)
 
-
 updateState ck  initialTargetState (AcidCell (CellCore tlive tvarFAcid) _ pdir rdir )  acidSt st = do
 --  let statePath = fromText.(codeCellKeyFilename ck).(getKey ck) $ st
   createCheckpoint acidSt 
@@ -250,10 +249,6 @@ updateState ck  initialTargetState (AcidCell (CellCore tlive tvarFAcid) _ pdir r
      stmInsert st' = do 
        liveMap <- readTVar tlive        
        writeTVar tlive $ M.insert (getKey ck st) st' liveMap
-
-
-
-
 
 deleteState :: (Ord k, Ord src, Ord dst, Ord tm) =>
                      CellKey k src dst tm st
@@ -288,32 +283,29 @@ getState ck (AcidCell (CellCore tlive _) _ _ _) st = do
           return $ M.lookup (getKey ck st) liveMap 
 
 
-
-
 stateFoldlWithKey :: t6   -> AcidCell t t1 t2 t3 t4 t5
                            -> (t6
                                -> DirectedKeyRaw t t1 t2 t3 -> AcidState t4 -> IO b -> IO b)
                            -> IO b
                            -> IO b
+
 stateFoldlWithKey ck (AcidCell (CellCore tlive _) _ _ _) fldFcn seed = do 
   liveMap <- readTVarIO tlive 
   M.foldWithKey (fldFcn ck ) seed liveMap
 
 
-
-stateTraverseWithKey_ ::  t6
-                            -> AcidCell t t1 t2 t3 t4 t5
-                            -> (t6 -> DirectedKeyRaw t t1 t2 t3 -> AcidState t4 -> IO ())
-                            -> IO ()
+stateTraverseWithKey_ :: forall t t1 t2 t3 t4 t5 t6 b.
+                         t6
+                         -> AcidCell t t1 t2 t3 t4 t5
+                         -> (t6 -> DirectedKeyRaw t t1 t2 t3 -> AcidState t4 -> IO b)
+                         -> IO (Map (DirectedKeyRaw t t1 t2 t3) b)
 
 stateTraverseWithKey_ ck (AcidCell (CellCore tlive _) _ _ _) tvFcn  = do 
   liveMap <- readTVarIO tlive 
   M.traverseWithKey tvFcnWrp  liveMap
-  return ()
       where
         tvFcnWrp k a = do
-          void $ forkFinally ( tvFcn ck k a) (\e -> either (\e' -> print e') (\_ -> return () ) e )
-          return () 
+          ( tvFcn ck k a) -- (\e -> either (\e' -> print e') (\_ -> return () ) e )
           
           
 createCellCheckPointAndClose :: forall t t1 t2 t3 t4 st st1.
@@ -384,7 +376,7 @@ initializeAcidCell ck emptyTargetState root = do
        let fpKey = r </> (fromText.(codeCellKeyFilename ck) $ fkRaw) 
        print fpKey
        est' <- openCKSt fpKey emptyTargetState
-       return $ either (\_-> cellMap ) (\st' -> M.insert fkRaw st' cellMap ) est'
+       either (\_-> return cellMap ) (\st' -> return $ M.insert fkRaw st' cellMap ) est'
 
 
 openCKSt :: IsAcidic st =>

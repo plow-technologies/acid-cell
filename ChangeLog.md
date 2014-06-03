@@ -17,6 +17,9 @@ Change Log Acid-Cell
 
 
 *Change History*
++ 0.1.13
+  updated traverse with key to stop using a built in IO fork
+  this allows better control over how and when to forkIO in a cell	
 + 0.1.12
   removed local branch dep on safecopy	
   changed insertState to use incoming st
