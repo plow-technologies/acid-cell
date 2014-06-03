@@ -24,7 +24,7 @@ module Data.Acid.Cell.Types (AcidCellError (..)
                             , updateState
                             , deleteState
                             , stateFoldlWithKey
-                            , stateTraverseWithKey_
+                            , stateTraverseWithKey
                             , createCellCheckPointAndClose
                             , archiveAndHandle 
                             ) where
@@ -294,13 +294,13 @@ stateFoldlWithKey ck (AcidCell (CellCore tlive _) _ _ _) fldFcn seed = do
   M.foldWithKey (fldFcn ck ) seed liveMap
 
 
-stateTraverseWithKey_ :: forall t t1 t2 t3 t4 t5 t6 b.
+stateTraverseWithKey :: forall t t1 t2 t3 t4 t5 t6 b.
                          t6
                          -> AcidCell t t1 t2 t3 t4 t5
                          -> (t6 -> DirectedKeyRaw t t1 t2 t3 -> AcidState t4 -> IO b)
                          -> IO (Map (DirectedKeyRaw t t1 t2 t3) b)
 
-stateTraverseWithKey_ ck (AcidCell (CellCore tlive _) _ _ _) tvFcn  = do 
+stateTraverseWithKey ck (AcidCell (CellCore tlive _) _ _ _) tvFcn  = do 
   liveMap <- readTVarIO tlive 
   M.traverseWithKey tvFcnWrp  liveMap
       where
