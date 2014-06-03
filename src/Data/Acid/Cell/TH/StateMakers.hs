@@ -110,12 +110,12 @@ makeTraverseWithKeyXAcidCell ckN _ stN = do
   f <- (funD (buildTraverseWithKeyName stN)) [(clause [] (normalB traverseWithKeyAcidCellTH) [] ) ] 
   return f 
   where 
-    traverseWithKeyAcidCellTH = (appE (varE 'stateTraverseWithKey_ ) (varE ckN)) 
+    traverseWithKeyAcidCellTH = (appE (varE 'stateTraverseWithKey ) (varE ckN)) 
 
 
 
 buildTraverseWithKeyName :: StateName -> Name
-buildTraverseWithKeyName stN = mkName.concat $ ["traverseWithKey", (nameBase stN), "AC_"]
+buildTraverseWithKeyName stN = mkName.concat $ ["traverseWithKey", (nameBase stN), "AC"]
   
 
 
