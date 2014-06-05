@@ -329,7 +329,7 @@ archiveAndHandle :: CellKey k src dst tm st
                           -> IO (Map (DirectedKeyRaw k src dst tm) (AcidState st1))
 archiveAndHandle ck (AcidCell (CellCore tlive tvarFAcid) _ pDir rDir) entryGC = do 
   liveMap <- readTVarIO tlive 
-  rslt <-  M.traverseWithKey (\dkr st -> onException (gcWrapper dkr st) (print "error archviing"))  liveMap  
+  rslt <-  M.traverseWithKey (\dkr st -> onException (gcWrapper dkr st) (print "error archiving"))  liveMap  
   fAcid <- readTVarIO tvarFAcid
   createArchive fAcid
   atomically $ writeTVar tvarFAcid fAcid
@@ -364,7 +364,8 @@ initializeAcidCell ck emptyTargetState root = do
  print "get unmakeThing"
  let setEitherFileKeyRaw = S.map (unmakeFileKey ck) fkSet  
  print "get fkSet"
- stateList <- traverse (traverseLFcn fpr) (rights . S.toList $ setEitherFileKeyRaw)
+ aStateList <- sequenceA $ traverse (traverseLFcn fpr) (rights . S.toList $ setEitherFileKeyRaw)
+ stateList <- wait aStateList
  let stateMap = M.fromList (rights stateList)
  print "get stateMap"
  tmap <- newTVarIO stateMap
@@ -373,7 +374,7 @@ initializeAcidCell ck emptyTargetState root = do
  print "get acidcell"
  return $ AcidCell (CellCore tmap tvarFAcid) ck parentWorkingDir newWorkingDir
     where
-     traverseLFcn  r fkRaw = (async $ traverseLFcn' r fkRaw )>>= (\asyncRslt -> wait asyncRslt)
+     traverseLFcn  r fkRaw = (async $ traverseLFcn' r fkRaw)
      traverseLFcn' r fkRaw = do 
        let fpKey = r </> (fromText.(codeCellKeyFilename ck) $ fkRaw) 
        print fpKey       
