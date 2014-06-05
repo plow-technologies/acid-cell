@@ -365,8 +365,10 @@ initializeAcidCell ck emptyTargetState root = do
  let setEitherFileKeyRaw = S.map (unmakeFileKey ck) fkSet  
  print "get fkSet"
  aStateList <- traverse (traverseLFcn fpr) (rights . S.toList $ setEitherFileKeyRaw)
- stateList <- traverse wait aStateList
- let stateMap = M.fromList (rights stateList)
+ print "created all async threads"
+ stateList <- traverse waitCatch aStateList
+ print "All threads processed. Creating map"
+ let stateMap = M.fromList (rights . rights $ stateList)
  print "get stateMap"
  tmap <- newTVarIO stateMap
  print "get tvarFAcid"
@@ -377,8 +379,9 @@ initializeAcidCell ck emptyTargetState root = do
      traverseLFcn  r fkRaw = (async $ traverseLFcn' r fkRaw)
      traverseLFcn' r fkRaw = do 
        let fpKey = r </> (fromText.(codeCellKeyFilename ck) $ fkRaw) 
-       print fpKey       
+       print $ "Starting: " ++ (show fpKey)    
        est' <- openCKSt fpKey emptyTargetState
+       print $ "Created: " ++ (show fpKey)    
        return $ fmap (\st' -> (fkRaw, st')) est'       
 --       either (\_-> return cellMap ) (\st' -> return $ M.insert fkRaw st' cellMap ) est'
 
