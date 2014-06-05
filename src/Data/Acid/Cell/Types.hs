@@ -41,6 +41,7 @@ import Control.Concurrent.STM
 import Control.Monad.Reader ( ask )
 import Control.Monad.State  
 import Control.Concurrent
+import Control.Concurrent.Async
 import Control.Exception
 -- Typeclasses
 import Data.Acid
@@ -363,7 +364,8 @@ initializeAcidCell ck emptyTargetState root = do
  print "get unmakeThing"
  let setEitherFileKeyRaw = S.map (unmakeFileKey ck) fkSet  
  print "get fkSet"
- stateMap <- foldlM (foldMFcn fpr) M.empty setEitherFileKeyRaw 
+ stateList <- traverse (traverseLFcn fpr) (rights . S.toList $ setEitherFileKeyRaw)
+ let stateMap = M.fromList (rights stateList)
  print "get stateMap"
  tmap <- newTVarIO stateMap
  print "get tvarFAcid"
@@ -371,12 +373,13 @@ initializeAcidCell ck emptyTargetState root = do
  print "get acidcell"
  return $ AcidCell (CellCore tmap tvarFAcid) ck parentWorkingDir newWorkingDir
     where
-     foldMFcn r cellMap (Left e)   = print "cellmap err" >> print e >> return cellMap 
-     foldMFcn r cellMap (Right fkRaw) = do 
+     traverseLFcn  r fkRaw = (async $ traverseLFcn' r fkRaw )>>= (\asyncRslt -> wait asyncRslt)
+     traverseLFcn' r fkRaw = do 
        let fpKey = r </> (fromText.(codeCellKeyFilename ck) $ fkRaw) 
-       print fpKey
+       print fpKey       
        est' <- openCKSt fpKey emptyTargetState
-       either (\_-> return cellMap ) (\st' -> return $ M.insert fkRaw st' cellMap ) est'
+       return $ fmap (\st' -> (fkRaw, st')) est'       
+--       either (\_-> return cellMap ) (\st' -> return $ M.insert fkRaw st' cellMap ) est'
 
 
 openCKSt :: IsAcidic st =>

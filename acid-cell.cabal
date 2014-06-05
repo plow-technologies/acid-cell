@@ -1,5 +1,5 @@
 Name:                   acid-cell
-Version:                0.1.12.1
+Version:                0.1.12.2
 Author:                 Scott Murphy <scottmurphy09@gmail.com>
 Maintainer:             Scott Murphy <scottmurphy09@gmail.com>
 License:                BSD3
@@ -33,7 +33,9 @@ Library
                       , containers >= 0.5.0.0
                       , bytestring >= 0.10.0.2
                       , directed-keys >= 0.2.0
+                      , async >= 2
                       , template-haskell
+                      
 
 Test-Suite spec
   Type:                 exitcode-stdio-1.0
