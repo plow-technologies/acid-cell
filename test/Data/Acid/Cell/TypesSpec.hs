@@ -48,14 +48,15 @@ $(makeAcidCell 'getTestCellKey 'initKeyedTestSetStore ''KeyedTestSetStore)
 stressTestFD = do
   ac <- initializeKeyedTestSetStoreAC "testFD"
   print "testing file descriptor overload"
-  sts <- traverse ((insertKeyedTestSetStoreAC ac).newKeyedTestSetStore)  [1 .. 2000]
+  sts <- traverse ((insertKeyedTestSetStoreAC ac).newKeyedTestSetStore)  [1 .. 20]
   -- stbacks <- getKeyedTestSetStoreAC ac (newKeyedTestSetStore 1)
   -- st3 <- case st2 of 
   --          Nothing ->  (insertKeyedTestSetStoreAC ac (newKeyedTestSetStore 1 ) )
   --          Just st ->  return st
   archiveAndHandleKeyedTestSetStoreAC ac (\_ b -> return b)
-  deleteKeyedTestSetStoreAC ac (newKeyedTestSetStore 1)
   createCheckpointAndCloseKeyedTestSetStoreAC ac 
+
+--  deleteKeyedTestSetStoreAC ac (newKeyedTestSetStore 1)
 --  traverseWithKeyKeyedTestSetStoreAC ac (\ck dr ast -> fail "testFailure")
 
 

@@ -29,7 +29,7 @@ Library
                       , basic-prelude
                       , cereal >= 0.4.0.1
                       , safecopy == 0.8.3
-                      , acid-state >= 0.12.2
+                      , acid-state >= 0.12.2.1
                       , containers >= 0.5.0.0
                       , bytestring >= 0.10.0.2
                       , directed-keys >= 0.2.0
