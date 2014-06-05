@@ -364,8 +364,8 @@ initializeAcidCell ck emptyTargetState root = do
  print "get unmakeThing"
  let setEitherFileKeyRaw = S.map (unmakeFileKey ck) fkSet  
  print "get fkSet"
- aStateList <- sequenceA $ traverse (traverseLFcn fpr) (rights . S.toList $ setEitherFileKeyRaw)
- stateList <- wait aStateList
+ aStateList <- traverse (traverseLFcn fpr) (rights . S.toList $ setEitherFileKeyRaw)
+ stateList <- traverse wait aStateList
  let stateMap = M.fromList (rights stateList)
  print "get stateMap"
  tmap <- newTVarIO stateMap
