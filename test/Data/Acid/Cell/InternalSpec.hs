@@ -11,7 +11,8 @@ module Data.Acid.Cell.InternalSpec (main
                                    , AcidCellTestSet (..)
                                    , TestSource (..)
                                    , TestHost (..)
-                                   , TestTime (..) 
+                                   , TestTime (..)
+                                   , initKeyedTestSetStore
                                    , newKeyedTestSetStore
                                    , TestDest (.. )
                                    , TestSource (.. )
@@ -122,8 +123,9 @@ $(deriveSafeCopy 0 'base ''DirectedKeyRaw)
 -- Acid State DIG
 
 -- Intializing Function
-newKeyedTestSetStore = KeyedTestSetStore . KeyedTestSet k $ S.empty
-    where k = DKeyRaw  (TestKey 0)  (TestHost 0)  (TestHost 0)  (TestTime 0)
+initKeyedTestSetStore = newKeyedTestSetStore 1  
+newKeyedTestSetStore iv = KeyedTestSetStore . KeyedTestSet k $ S.empty
+    where k = DKeyRaw  (TestKey iv)  (TestHost iv)  (TestHost iv)  (TestTime iv)
           e :: Text 
           e = ""
 

@@ -17,7 +17,7 @@ import CorePrelude
 
 import Control.Concurrent.STM
 import Data.Foldable
-
+import Data.Traversable
 
 
 -- Containers 
@@ -43,7 +43,21 @@ Test stages to create Acid States for test without them.
 This is why the test data in Internal was made.
 |-}
 
+$(makeAcidCell 'getTestCellKey 'initKeyedTestSetStore ''KeyedTestSetStore)
 
+stressTestFD = do
+  ac <- initializeKeyedTestSetStoreAC "testFD"
+  print "testing file descriptor overload"
+  sts <- traverse ((insertKeyedTestSetStoreAC ac).newKeyedTestSetStore)  [1 .. 20]
+  -- stbacks <- getKeyedTestSetStoreAC ac (newKeyedTestSetStore 1)
+  -- st3 <- case st2 of 
+  --          Nothing ->  (insertKeyedTestSetStoreAC ac (newKeyedTestSetStore 1 ) )
+  --          Just st ->  return st
+  archiveAndHandleKeyedTestSetStoreAC ac (\_ b -> return b)
+  createCheckpointAndCloseKeyedTestSetStoreAC ac 
+
+--  deleteKeyedTestSetStoreAC ac (newKeyedTestSetStore 1)
+--  traverseWithKeyKeyedTestSetStoreAC ac (\ck dr ast -> fail "testFailure")
 
 
 
@@ -52,8 +66,9 @@ main = hspec spec
 
 spec :: Spec
 spec = do
-  describe "someFunction" $ do
-    it "should work fine" $ do
+  describe "stressTestFD " $ do
+    it "should insert states until at least 2000 and work" $ do
+      stressTestFD
       True `shouldBe` False
 
 
@@ -77,27 +92,28 @@ type TestCellDirectedKey = (DirectedKeyRaw TestKey TestHost TestHost TestTime)
 --   acidCell <- initializeAcidCell getTestCellKey newKeyedTestSetStore "testBS"
 --   insertState getTestCellKey newKeyedTestSetStore acidCell newKeyedTestSetStore
 --   stuff <- getState getTestCellKey acidCell newKeyedTestSetStore
---   deleteState getTestCellKey acidCell newKeyedTestSetStore 
+--   deleteState getTestCellKey acidCellnewKeyedTestSetStore 
 
 --   case stuff of 
 --     Nothing -> print "wheee" 
 --     Just _ -> print "whoah"
 
-$(makeAcidCell 'getTestCellKey 'newKeyedTestSetStore ''KeyedTestSetStore)
+
+-- | Stress test should be run twice to get everything in state
 
 testControlFlowNew = do   
   wd <- getWorkingDirectory
   ac <- initializeKeyedTestSetStoreAC "testBS"
   print "i1"
-  st1 <- insertKeyedTestSetStoreAC ac newKeyedTestSetStore
-  st2 <- getKeyedTestSetStoreAC ac newKeyedTestSetStore     
+  st1 <- insertKeyedTestSetStoreAC ac (newKeyedTestSetStore 1)
+  st2 <- getKeyedTestSetStoreAC ac (newKeyedTestSetStore 1)
   st3 <- case st2 of 
-           Nothing ->  (insertKeyedTestSetStoreAC ac newKeyedTestSetStore) 
+           Nothing ->  (insertKeyedTestSetStoreAC ac (newKeyedTestSetStore 1 ) )
            Just st ->  return st
   archiveAndHandleKeyedTestSetStoreAC ac (\_ b -> return b)
-  deleteKeyedTestSetStoreAC ac newKeyedTestSetStore
+  deleteKeyedTestSetStoreAC ac (newKeyedTestSetStore 1)
   createCheckpointAndCloseKeyedTestSetStoreAC ac 
-  traverseWithKeyKeyedTestSetStoreAC_ ac (\ck dr ast -> fail "testFailure")
+  traverseWithKeyKeyedTestSetStoreAC ac (\ck dr ast -> fail "testFailure")
   setWorkingDirectory wd 
   return st3
   
