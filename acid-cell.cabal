@@ -14,8 +14,8 @@ Library
   HS-Source-Dirs:       src
   GHC-Options:          -Wall
   Exposed-Modules:      Data.Acid.Cell
-  Other-Modules:        Data.Acid.Cell.Internal                        
                         Data.Acid.Cell.Types
+  Other-Modules:        Data.Acid.Cell.Internal                        
                         Data.Acid.Cell.TH
                         Data.Acid.Cell.TH.PathMakers
                         Data.Acid.Cell.TH.StateMakers

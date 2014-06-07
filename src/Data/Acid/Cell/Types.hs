@@ -64,6 +64,8 @@ import qualified Data.Set as S
 -- Strings /Monomorphs 
 import qualified Data.Text as T
 
+import Data.Acid.Cell.Internal
+
 -- | 'CellKey' declares two functions, 
 -- 'getKey' which is supposed to take an Acidic Value and return a 'DirectedKeyRaw' 
 -- 'makeFilename' which takes a directed key and returns text.  
@@ -158,9 +160,6 @@ insertAcidCellPathFileKey fk =  do
   (void $ put $ (CellKeyStore (S.insert  fk hsSet )))
   return fk
 
-
-
-  
 
 getAcidCellPathFileKey :: Query CellKeyStore ((S.Set FileKey))
 getAcidCellPathFileKey = do
@@ -364,11 +363,12 @@ initializeAcidCell ck emptyTargetState root = do
  print "get unmakeThing"
  let setEitherFileKeyRaw = S.map (unmakeFileKey ck) fkSet  
  print "get fkSet"
- aStateList <- traverse (traverseLFcn fpr) (rights . S.toList $ setEitherFileKeyRaw)
- print "created all async threads"
- stateList <- traverse waitCatch aStateList
+ let groupedList = groupUp 16 (rights . S.toList $ setEitherFileKeyRaw)
+ aStateList <- traverse (traverseAndWait fpr) groupedList
+ -- stateMap <- foldlM (foldMFcn fpr) M.empty setEitherFileKeyRaw
+ -- stateList <- traverse (traverseLFcn fpr) setEitherFileKeyRaw
  print "All threads processed. Creating map"
- let stateMap = M.fromList (rights . rights $ stateList)
+ let stateMap = M.fromList (rights . rights $ (Data.Foldable.concat aStateList))
  print "get stateMap"
  tmap <- newTVarIO stateMap
  print "get tvarFAcid"
@@ -376,14 +376,22 @@ initializeAcidCell ck emptyTargetState root = do
  print "get acidcell"
  return $ AcidCell (CellCore tmap tvarFAcid) ck parentWorkingDir newWorkingDir
     where
-     traverseLFcn  r fkRaw = (async $ traverseLFcn' r fkRaw)
-     traverseLFcn' r fkRaw = do 
-       let fpKey = r </> (fromText.(codeCellKeyFilename ck) $ fkRaw) 
-       print $ "Starting: " ++ (show fpKey)    
-       est' <- openCKSt fpKey emptyTargetState
-       print $ "Created: " ++ (show fpKey)    
-       return $ fmap (\st' -> (fkRaw, st')) est'       
---       either (\_-> return cellMap ) (\st' -> return $ M.insert fkRaw st' cellMap ) est'
+      --foldMFcn r cellMap (Left e)   = print "cellmap err" >> print e >> return cellMap 
+      --foldMFcn r cellMap (Right fkRaw) = do 
+      --  let fpKey = r </> (fromText.(codeCellKeyFilename ck) $ fkRaw) 
+      --  print fpKey
+      --  est' <- openCKSt fpKey emptyTargetState
+      --  either (\_-> return cellMap ) (\st' -> return $ M.insert fkRaw st' cellMap ) est'
+      traverseAndWait f l = do
+        aRes <- traverse (traverseLFcn f) l
+        traverse waitCatch aRes
+      traverseLFcn  r fkRaw = (async $ traverseLFcn' r fkRaw)
+      traverseLFcn' r fkRaw = do 
+        let fpKey = r </> (fromText . (codeCellKeyFilename ck) $ fkRaw) 
+        est' <- openCKSt fpKey emptyTargetState
+        print $ "opened: " ++ (show fpKey)    
+        return $ fmap (\st' -> (fkRaw, st')) est'       
+        -- either (\_-> return cellMap ) (\st' -> return $ M.insert fkRaw st' cellMap ) est'
 
 
 openCKSt :: IsAcidic st =>
