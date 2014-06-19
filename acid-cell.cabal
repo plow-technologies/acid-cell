@@ -1,5 +1,5 @@
 Name:                   acid-cell
-Version:                0.1.12.3
+Version:                0.1.13
 Author:                 Scott Murphy <scottmurphy09@gmail.com>
 Maintainer:             Scott Murphy <scottmurphy09@gmail.com>
 License:                BSD3
@@ -29,10 +29,10 @@ Library
                       , basic-prelude
                       , cereal >= 0.4.0.1
                       , safecopy == 0.8.3
-                      , acid-state >= 0.12.2.1
+                      , acid-state >= 0.12.2.7569
                       , containers >= 0.5.0.0
                       , bytestring >= 0.10.0.2
-                      , directed-keys >= 0.2.0
+                      , directed-keys >= 0.2.1
                       , async >= 2
                       , template-haskell
                       
