@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings,NoImplicitPrelude,TemplateHaskell, GeneralizedNewtypeDeriving, DeriveGeneric #-}
+{-# LANGUAGE OverloadedStrings, NoImplicitPrelude,TemplateHaskell, GeneralizedNewtypeDeriving, DeriveGeneric #-}
 {-# LANGUAGE RecordWildCards, TypeFamilies,DeriveDataTypeable,ScopedTypeVariables #-}
 
 {-| 
@@ -36,7 +36,7 @@ import Filesystem
 
 -- Controls
 import Prelude (show, (++) )
-import CorePrelude hiding (try,onException)
+import CorePrelude hiding (try,onException,catch)
 import Control.Concurrent.STM
 import Control.Monad.Reader ( ask )
 import Control.Monad.State  
@@ -86,12 +86,10 @@ data CellKey k src dst tm st = CellKey { getKey :: st -> (DirectedKeyRaw k src d
 -- | the codeCellKeyFilename actually will be used to make these file keys but
 -- I figure why not just make it where you can pass a Text generator.
 
-
 newtype FileKey = FileKey { getFileKey :: Text} deriving (Show,Generic,Typeable,Ord,Eq)
 
-
 $(deriveSafeCopy 0 'base ''FileKey)
-
+  
 makeFileKey :: CellKey k src dst tm st -> st -> FileKey 
 makeFileKey ck s = FileKey (codeCellKeyFilename ck . getKey ck $ s)
 
@@ -243,7 +241,7 @@ makeWorkingStatePath pdir rdir nsp = do
 
 updateState ck  initialTargetState (AcidCell (CellCore tlive tvarFAcid) _ pdir rdir )  acidSt st = do
 --  let statePath = fromText.(codeCellKeyFilename ck).(getKey ck) $ st
-  createCheckpoint acidSt 
+--  createCheckpoint acidSt 
   atomically $ stmInsert acidSt
    where 
      stmInsert st' = do 
@@ -328,18 +326,17 @@ archiveAndHandle :: CellKey k src dst tm st
                           -> IO (Map (DirectedKeyRaw k src dst tm) (AcidState st1))
 archiveAndHandle ck (AcidCell (CellCore tlive tvarFAcid) _ pDir rDir) entryGC = do 
   liveMap <- readTVarIO tlive 
-  rslt <-  M.traverseWithKey (\dkr st -> onException (gcWrapper dkr st) (print "error archiving"))  liveMap  
+  rslt <-  M.traverseWithKey (\dkr st -> catch (gcWrapper dkr st) (\(SomeException e) -> print "top level exception" >> print e >> return st) )  liveMap  
   fAcid <- readTVarIO tvarFAcid
-  createArchive fAcid
+  catch (createArchive fAcid) (\(SomeException e) -> print "at archive point" >> print e)
   atomically $ writeTVar tvarFAcid fAcid
   atomically $ writeTVar tlive rslt
---  removeTree "Archive"
   return rslt
     where 
       targetStatePath dkr = fromText.(codeCellKeyFilename ck) $ dkr :: FilePath
       gcWrapper dkr st = do
         let stateLocalFP = (targetStatePath dkr)
-        void $ createArchive st 
+        void $ catch (createArchive st ) (\(SomeException e) -> print "at local archive point" >> print e)
 
         rslt <- entryGC stateLocalFP st
         return rslt
@@ -351,29 +348,29 @@ initializeAcidCell :: (Ord k, Ord src, Ord dst, Ord tm, IsAcidic stlive) =>
                             -> stlive
                             -> Text                            -> IO (AcidCell k src dst tm stlive (AcidState CellKeyStore))
 initializeAcidCell ck emptyTargetState root = do 
- print "get WD"
+-- print "get WD"
  parentWorkingDir <- getWorkingDirectory
  let acidRootPath = fromText root
      newWorkingDir = acidRootPath
      fpr           = (parentWorkingDir </> acidRootPath)
- print "get fAcidSt"
+-- print "get fAcidSt"
  fAcidSt <- openLocalStateFrom (encodeString fpr ) emptyCellKeyStore 
- print "get fkSet"
+-- print "get fkSet"
  fkSet   <-   query' fAcidSt (GetAcidCellPathFileKey)
- print "get unmakeThing"
+-- print "get unmakeThing"
  let setEitherFileKeyRaw = S.map (unmakeFileKey ck) fkSet  
- print "get fkSet"
+--  print "get fkSet"
  let groupedList = groupUp 16 (rights . S.toList $ setEitherFileKeyRaw)
  aStateList <- traverse (traverseAndWait fpr) groupedList
  -- stateMap <- foldlM (foldMFcn fpr) M.empty setEitherFileKeyRaw
  -- stateList <- traverse (traverseLFcn fpr) setEitherFileKeyRaw
- print "All threads processed. Creating map"
+--  print "All threads processed. Creating map"
  let stateMap = M.fromList (rights . rights $ (Data.Foldable.concat aStateList))
- print "get stateMap"
+--  print "get stateMap"
  tmap <- newTVarIO stateMap
- print "get tvarFAcid"
+--  print "get tvarFAcid"
  tvarFAcid <- newTVarIO fAcidSt
- print "get acidcell"
+--  print "get acidcell"
  return $ AcidCell (CellCore tmap tvarFAcid) ck parentWorkingDir newWorkingDir
     where
       --foldMFcn r cellMap (Left e)   = print "cellmap err" >> print e >> return cellMap 

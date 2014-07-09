@@ -7,16 +7,9 @@ Change Log Acid-Cell
 
 *For complete history please view commit log*
 
-##Current Version 0.1.11
---------------------------	
-
-
-### Proposed Release 0.1.12
-----------------------------
-
-
-
 *Change History*
++ 0.1.14
+  updated acid cell to return appropriate stuff for archiveAndHandle
 + 0.1.13
   updated traverse with key to stop using a built in IO fork
   this allows better control over how and when to forkIO in a cell	
@@ -33,6 +26,7 @@ Change Log Acid-Cell
   File Paths resolved
   be very careful about changing, the reason there is nothing in archiveAndHandle for filepaths is on purpose.
 + 0.1.7
+
   Changed to use full path names
   Alarm State no longer admits empty keys
 + 0.1.6
