@@ -8,6 +8,8 @@ Change Log Acid-Cell
 *For complete history please view commit log*
 
 *Change History*
++ 0.1.15
+  Figured out hte main problem with the archiving was the need to close the state every once and a while for garbage collection
 + 0.1.14
   updated acid cell to return appropriate stuff for archiveAndHandle
 + 0.1.13
