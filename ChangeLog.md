@@ -8,6 +8,9 @@ Change Log Acid-Cell
 *For complete history please view commit log*
 
 *Change History*
++ 0.1.16
+  Added better exception throwing on insert case... already exists now throws when a state is already present in the live map.
+  
 + 0.1.15
   Figured out hte main problem with the archiving was the need to close the state every once and a while for garbage collection
 + 0.1.14

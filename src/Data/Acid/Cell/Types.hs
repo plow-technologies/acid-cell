@@ -43,6 +43,7 @@ import Control.Monad.State
 import Control.Concurrent
 import Control.Concurrent.Async
 import Control.Exception
+import System.IO.Error
 -- Typeclasses
 import Data.Acid
 import Data.Acid.Local (createCheckpointAndClose)
@@ -105,6 +106,30 @@ data CellCore  k src dst tm tvlive stdormant = CellCore {
       ccLive     :: ! (TVar (M.Map (DirectedKeyRaw  k src dst tm) tvlive ))
       ,ccDormant :: !(TVar stdormant)
     }
+
+data WriteLockST = WriteLockST
+ deriving (Eq,Show,Generic)
+
+lookupWithWriteLock dkr liveMap = do
+  case M.lookup dkr liveMap of
+    Nothing -> return Nothing
+    Just (writeLockTMV, st) -> do
+      writeLock <- atomically $ takeTMVar writeLockTMV
+      return . Just $ st
+
+lookupWithNoLock dkr liveMap = do
+  case M.lookup dkr liveMap of
+    Nothing -> return Nothing
+    Just (writeLockTMV, st) -> do
+      return . Just $ st
+
+
+removeWriteLock ck dkr liveMap = do
+  case M.lookup dkr liveMap of
+    Nothing -> throwDNE ck dkr 
+    Just (writeLockTMV, _) -> atomically $ putTMVar writeLockTMV WriteLockST
+
+throwDNE ck dkr = ioError $ mkIOError doesNotExistErrorType "Write Lock Error D.N.E."  Nothing (Just . T.unpack . codeCellKeyFilename ck $ dkr  )
 
 newtype CellKeyStore  = CellKeyStore { getCellKeyStore :: (S.Set FileKey)}
     deriving (Typeable,Show,Generic)
@@ -213,22 +238,29 @@ insertState :: (Ord k, Ord src, Ord dst, Ord tm, IsAcidic t,IsAcidic st) =>
                           k src dst tm st (AcidState (EventState InsertAcidCellPathFileKey))
                      -> st
                      -> IO (AcidState st)
-insertState ck  initialTargetState (AcidCell (CellCore tlive tvarFAcid) _ pdir rdir)  st = do 
+insertState ck  initialTargetState (AcidCell (CellCore tlive tvarFAcid) _ pdir rdir)  st = do
+  void $ (atomically $ readTVar tlive) >>= (checkIfExists ck st)
   let newStatePath = (codeCellKeyFilename ck).(getKey ck) $ st
   fullStatePath <- makeWorkingStatePath pdir rdir newStatePath
   fAcid <- readTVarIO tvarFAcid
   void $ insertAcidCellPath ck fAcid  st  
-  eacidSt <- try (openLocalStateFrom (encodeString fullStatePath) st )  
-  either (\(e::IOException)  -> lockOrThere e newStatePath) (\acidSt -> do
-                                atomically (stmInsert acidSt)                                
-                                createCheckpoint fAcid 
-                                atomically $ writeTVar tvarFAcid fAcid
-                                return acidSt ) eacidSt
+  acidSt <- (openLocalStateFrom (encodeString fullStatePath) st )    
+  atomically (stmInsert acidSt)                                
+  createCheckpoint fAcid 
+  atomically $ writeTVar tvarFAcid fAcid
+  return acidSt 
    where 
      stmInsert st' = do 
        liveMap <- readTVar tlive        
        writeTVar tlive $ M.insert (getKey ck st) st' liveMap
-     lockOrThere e fp = fail (("insertState Failed to insert! State locked or already exists" ++ (show e)))
+     lockOrThere e fp = fail (("insertState Failed to insert!" ++ (show e)))
+
+
+checkIfExists ck st liveMap = case M.lookup (getKey ck st) liveMap of
+  Nothing -> return ()
+  Just aST -> do
+    let newStatePath = (codeCellKeyFilename ck).(getKey ck) $ st
+    ioError $ mkIOError alreadyInUseErrorType "ST already exists" Nothing (Just . T.unpack $ newStatePath)
 
 
 -- | Generate the state path from the full path of the working directory... pdir 
@@ -264,7 +296,7 @@ deleteState ck (AcidCell (CellCore tlive tvarFAcid) _ pdir rdir) st = do
   atomically $ writeTVar tvarFAcid fAcid
   np <- (makeWorkingStatePath pdir rdir targetStatePath)
   removeTree np
-      where
+     where
         stmDelete = do 
           liveMap <- readTVar tlive
           writeTVar tlive $ M.delete (getKey ck st) liveMap
