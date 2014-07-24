@@ -27,7 +27,7 @@ allStateMakers :: [CellKeyName -> InitializerName -> StateName -> Q Dec]
 allStateMakers = [ makeInitializeXAcidCell
                  , makeInsertXAcidCell
                  , makeDeleteXAcidCell
-                 , makeGetXAcidCell
+                 --, makeGetXAcidCell
                  , makeFoldlWithKeyXAcidCell
                  , makeTraverseWithKeyXAcidCell
                  , makeCreateCheckpointAndCloseXAcidCell 
@@ -79,12 +79,12 @@ buildDeleteName stN = mkName.concat $ ["delete", (nameBase stN), "AC"]
   
 
 
-makeGetXAcidCell :: CellKeyName -> InitializerName -> StateName -> Q Dec
-makeGetXAcidCell ckN _ stN = do 
-  f <- (funD (buildGetName stN)) [(clause [] (normalB getAcidCellTH) [] ) ] 
-  return f 
-  where 
-    getAcidCellTH = (appE (varE 'getState ) (varE ckN)) 
+--makeGetXAcidCell :: CellKeyName -> InitializerName -> StateName -> Q Dec
+--makeGetXAcidCell ckN _ stN = do 
+--  f <- (funD (buildGetName stN)) [(clause [] (normalB getAcidCellTH) [] ) ] 
+--  return f 
+--  where 
+--    getAcidCellTH = (appE (varE 'getState ) (varE ckN)) 
 
 buildGetName :: StateName -> Name
 buildGetName stN = mkName.concat $ ["get", (nameBase stN), "AC"]
