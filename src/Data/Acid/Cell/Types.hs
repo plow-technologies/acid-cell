@@ -15,6 +15,7 @@
 module Data.Acid.Cell.Types (AcidCellError (..)
                             , CellKey (..)
                             , CellKeyStore
+                            , CellState
                             , AcidCell
                             , DeleteAcidCellPathFileKey
                             , InsertAcidCellPathFileKey
@@ -126,7 +127,6 @@ lookupWithNoLock dkr liveMap = do
     Nothing -> return Nothing
     Just (writeLockTMV, st) -> do
       return . Just $ st
-
 
 removeWriteLock ck dkr liveMap = do
   case M.lookup dkr liveMap of
