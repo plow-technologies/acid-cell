@@ -30,6 +30,7 @@ module Data.Acid.Cell.Types (AcidCellError (..)
                             , queryCellState
                             , updateCellState
                             , isKeyUnlocked
+                            , stateExists
                             ) where
 
 
@@ -39,16 +40,17 @@ import Filesystem
 
 -- Controls
 import Prelude (show, (++) )
-import CorePrelude hiding (try,onException,catch, finally)
+import CorePrelude hiding (try,catch, finally)
 import Control.Concurrent.STM
 import Control.Monad.Reader ( ask )
 import Control.Monad.State  
-import Control.Concurrent
+
 import Control.Concurrent.Async
 import Control.Exception
-import System.IO.Error
+
 -- Typeclasses
 import Data.Acid
+
 import Data.Acid.Local (createCheckpointAndClose)
 import Data.Acid.Advanced   (update', query')
 
@@ -115,29 +117,31 @@ data CellState tvlive = CellState { getWriteLock :: TMVar WriteLockST, getAcidSt
 data WriteLockST = WriteLockST
  deriving (Eq,Show,Generic)
 
-lookupWithWriteLock dkr liveMap = do
-  case M.lookup dkr liveMap of
-    Nothing -> return Nothing
-    Just (writeLockTMV, st) -> do
-      writeLock <- atomically $ takeTMVar writeLockTMV
-      return . Just $ st
+-- lookupWithWriteLock ::  Ord k =>   k -> Map k (TMVar t, a) -> IO (Maybe a)
+-- lookupWithWriteLock dkr liveMap = do
+--   case M.lookup dkr liveMap of
+--     Nothing -> return Nothing
+--     Just (writeLockTMV, st) -> do
+--       writeLock <- atomically $ takeTMVar writeLockTMV
+--       return . Just $ st
 
-lookupWithNoLock dkr liveMap = do
-  case M.lookup dkr liveMap of
-    Nothing -> return Nothing
-    Just (writeLockTMV, st) -> do
-      return . Just $ st
+-- lookupWithNoLock dkr liveMap = do
+--   case M.lookup dkr liveMap of
+--     Nothing -> return Nothing
+--     Just (writeLockTMV, st) -> do
+--       return . Just $ st
 
-removeWriteLock ck dkr liveMap = do
-  case M.lookup dkr liveMap of
-    Nothing -> throwDNE ck dkr 
-    Just (writeLockTMV, _) -> atomically $ putTMVar writeLockTMV WriteLockST
+-- removeWriteLock ck dkr liveMap = do
+--   case M.lookup dkr liveMap of
+--     Nothing -> throwDNE ck dkr 
+--     Just (writeLockTMV, _) -> atomically $ putTMVar writeLockTMV WriteLockST
 
-throwDNE ck dkr = ioError $ mkIOError doesNotExistErrorType "Write Lock Error D.N.E."  Nothing (Just . T.unpack . codeCellKeyFilename ck $ dkr  )
+-- throwDNE ck dkr = ioError $ mkIOError doesNotExistErrorType "Write Lock Error D.N.E."  Nothing (Just . T.unpack . codeCellKeyFilename ck $ dkr  )
 
 newtype CellKeyStore  = CellKeyStore { getCellKeyStore :: (S.Set FileKey)}
     deriving (Typeable,Show,Generic)
 
+emptyCellKeyStore :: CellKeyStore
 emptyCellKeyStore = CellKeyStore S.empty
 
 $(deriveSafeCopy 0 'base ''CellKeyStore)
@@ -258,7 +262,8 @@ insertState ck  initialTargetState (AcidCell (CellCore tlive tvarFAcid) _ pdir r
      stmInsert st' = do 
        liveMap <- readTVar tlive        
        writeTVar tlive $ M.insert (getKey ck st) st' liveMap
-     lockOrThere e fp = fail (("insertState Failed to insert!" ++ (show e)))
+     lockOrThere e _fp = fail (("insertState Failed to insert!" ++ (show e)))
+
 
 
 checkIfExists ck st liveMap = case M.lookup (getKey ck st) liveMap of
@@ -266,6 +271,17 @@ checkIfExists ck st liveMap = case M.lookup (getKey ck st) liveMap of
   Just aST -> do
     let newStatePath = (codeCellKeyFilename ck).(getKey ck) $ st
     ioError $ mkIOError alreadyInUseErrorType "ST already exists" Nothing (Just . T.unpack $ newStatePath)
+
+
+
+
+stateExists (AcidCell (CellCore tlive tvarFAcid) _ pdir rdir)  dkr = do
+  void $ (atomically $ readTVar tlive) >>= (checkST) 
+  where
+  checkST liveMap = case M.lookup dkr liveMap of
+    Nothing -> return False
+    Just _ -> return True
+
 
 
 -- | Generate the state path from the full path of the working directory... pdir 
@@ -276,7 +292,7 @@ makeWorkingStatePath pdir rdir nsp = do
     void $ when (nsp == "") (fail "--> Cell key led to empty state path")
     return $ pdir </> rdir </> (fromText nsp)
 
-updateState ck  initialTargetState (AcidCell (CellCore tlive tvarFAcid) _ pdir rdir )  acidSt st = do
+updateState ck  initialTargetState (AcidCell (CellCore tlive tvarFAcid) _ _pdir _rdir )  acidSt st = do
 --  let statePath = fromText.(codeCellKeyFilename ck).(getKey ck) $ st
 --  createCheckpoint acidSt 
   atomically $ stmInsert acidSt
@@ -293,7 +309,7 @@ deleteState :: (Ord k, Ord src, Ord dst, Ord tm) =>
                      -> IO ()
 deleteState ck (AcidCell (CellCore tlive tvarFAcid) _ pdir rdir) st = do 
   let targetStatePath = (codeCellKeyFilename ck).(getKey ck) $ st 
-      targetFP = fromText targetStatePath ::FilePath       
+--      targetFP = fromText targetStatePath ::FilePath       
   void $ atomically stmDelete
   fAcid <- readTVarIO tvarFAcid
   void $ deleteAcidCellPath ck fAcid st  
@@ -345,9 +361,9 @@ stateTraverseWithKey ck (AcidCell (CellCore tlive _) _ _ _) tvFcn  = do
 createCellCheckPointAndClose :: forall t t1 t2 t3 t4 st st1.
                                 (SafeCopy st1, Typeable st1) =>
                                 t -> AcidCell t1 t2 t3 t4 st (AcidState st1) -> IO ()
-createCellCheckPointAndClose _ (AcidCell (CellCore tlive tvarFAcid) _ pdir rdir ) = do 
+createCellCheckPointAndClose _ (AcidCell (CellCore tlive tvarFAcid) _ _pdir _rdir ) = do 
   liveMap <- readTVarIO tlive 
-  void $ traverse (\st -> (onException (lockHoldFunction (getWriteLock st) $ closeAcidState . getAcidState $  st) (putStrLn "error closing state") )) liveMap
+  void $ traverse (\st -> (catch (lockHoldFunction (getWriteLock st) $ closeAcidState . getAcidState $  st) (\(e::SomeException) -> putStrLn "error closing state" >> print e) )) liveMap
   fAcid <- readTVarIO tvarFAcid
   void $ createCheckpointAndClose fAcid
 
@@ -387,7 +403,7 @@ archiveAndHandle :: CellKey k src dst tm st
                           -> AcidCell k src dst tm st1 (AcidState st2)
                           -> (FilePath -> AcidState st1 -> IO (AcidState st1))
                           -> IO (Map (DirectedKeyRaw k src dst tm) (AcidState st1))
-archiveAndHandle ck (AcidCell (CellCore tlive tvarFAcid) _ pDir rDir) entryGC = do 
+archiveAndHandle ck (AcidCell (CellCore tlive tvarFAcid) _ _pDir _rDir) entryGC = do 
   liveMap <- readTVarIO tlive 
   rslt <-  M.traverseWithKey (\dkr cs -> lockStateIO  (getWriteLock cs) (getAcidState cs) (gcWrapper dkr))  liveMap  
   fAcid <- readTVarIO tvarFAcid
@@ -415,7 +431,7 @@ initializeAcidCell ck emptyTargetState root = do
  let acidRootPath = fromText root
      newWorkingDir = acidRootPath
      fpr           = (parentWorkingDir </> acidRootPath)
--- print "get fAcidSt"
+ -- print "get fAcidSt"
  fAcidSt <- openLocalStateFrom (encodeString fpr ) emptyCellKeyStore 
 -- print "get fkSet"
  fkSet   <-   query' fAcidSt (GetAcidCellPathFileKey)
@@ -481,11 +497,29 @@ queryCellState cell key event = do
     (Just (CellState lock st)) -> lockFunctionIO lock $ query' st event >>= return . Just
     Nothing -> return Nothing
 
+-- updateCellState :: (UpdateEvent event, Ord tm, Ord dst, Ord src, Ord k) =>
+--              AcidCell k src dst tm (EventState event) stdormant
+--              -> DirectedKeyRaw k src dst tm -> event -> IO (Maybe (EventResult event))
 updateCellState :: (UpdateEvent event, Ord tm, Ord dst, Ord src, Ord k) =>
-             AcidCell k src dst tm (EventState event) stdormant
-             -> DirectedKeyRaw k src dst tm -> event -> IO (Maybe (EventResult event))
+                         AcidCell
+                           k
+                           src
+                           dst
+                           tm
+                           (EventState event)
+                           stdormant
+                         -> DirectedKeyRaw k src dst tm
+                         -> event
+                         -> IO
+                              (Maybe (EventResult event))    
 updateCellState cell key event = do
   liveMap <- readTVarIO . ccLive . cellCore $ cell
   case M.lookup key liveMap of
-    (Just (CellState lock st)) -> lockFunctionIO lock $ update' st event >>= return . Just
+    (Just cst@(CellState lock st)) -> do
+      let updateInnerFcn = do
+            rslt <- (update' st event) 
+            void $ atomically $ writeTVar (ccLive . cellCore $ cell) $ (M.insert key cst liveMap)
+            return rslt
+      rslt <- (lockFunctionIO lock $ updateInnerFcn)      
+      return . Just $ rslt 
     Nothing -> return Nothing
