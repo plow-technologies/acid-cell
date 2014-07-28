@@ -29,6 +29,7 @@ module Data.Acid.Cell.Types (AcidCellError (..)
                             , queryCellState
                             , updateCellState
                             , isKeyUnlocked
+                            , CellState
                             ) where
 
 
