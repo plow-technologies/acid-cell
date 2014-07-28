@@ -385,15 +385,16 @@ lockStateIO lock st func = do
   where lockState = atomically $ takeTMVar lock
         unlockState = atomically $ putTMVar lock WriteLockST 
         handleException' (SomeException e) = putStrLn "top level exception " >> print e >> return st
-        handleException (SomeException e) = putStrLn "Exception thrown in lockStateIO " >> throw e
+        handleException (SomeException e) = putStrLn "Exception while running func in lockStateIO " >> throw e
 
 lockFunctionIO :: TMVar WriteLockST -> IO a -> IO a
 lockFunctionIO lock func = do
   _ <- (catch lockState handleException)
-  finally (catch func handleException) unlockState
+  finally (catch func handleException') unlockState
   where lockState = atomically $ takeTMVar lock
         unlockState = atomically $ putTMVar lock WriteLockST 
         handleException (SomeException e) = putStrLn "Exception thrown in lockFunctionIO " >> throw e
+        handleException' (SomeException e) = putStrLn "Exception while running func in lockFunctionIO " >> throw e
 
 lockHoldFunction :: TMVar WriteLockST -> IO a -> IO a
 lockHoldFunction lock func = do
