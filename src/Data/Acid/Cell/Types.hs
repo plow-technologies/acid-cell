@@ -366,7 +366,7 @@ createCellCheckPointAndClose :: forall t t1 t2 t3 t4 st st1.
                                 t -> AcidCell t1 t2 t3 t4 st (AcidState st1) -> IO ()
 createCellCheckPointAndClose _ (AcidCell (CellCore tlive tvarFAcid) _ _pdir _rdir ) = do 
   liveMap <- readTVarIO tlive 
-  void $ traverse (\st -> (catch (lockHoldFunction (getWriteLock st) $ closeAcidState . getAcidState $  st) (\(e::SomeException) -> putStrLn "error closing state" >> print e) )) liveMap
+  void $ traverse (\st -> (catch (lockFunctionIO (getWriteLock st) $ closeAcidState . getAcidState $  st) (\(e::SomeException) -> putStrLn "error closing state" >> print e) )) liveMap
   fAcid <- readTVarIO tvarFAcid
   void $ createCheckpointAndClose fAcid
 
