@@ -380,26 +380,27 @@ isKeyUnlocked cell key = do
 
 lockStateIO :: TMVar WriteLockST -> b -> (b -> IO b) -> IO b
 lockStateIO lock st func = do
-  _ <- lockState
-  finally (catch (func st) handleException) unlockState
+  _ <- catch lockState handleException
+  finally (catch (func st) handleException') unlockState
   where lockState = atomically $ takeTMVar lock
         unlockState = atomically $ putTMVar lock WriteLockST 
-        handleException (SomeException e) = putStrLn "top level exception" >> print e >> return st
+        handleException' (SomeException e) = putStrLn "top level exception " >> print e >> return st
+        handleException (SomeException e) = putStrLn "Exception thrown in lockStateIO " >> throw e
 
 lockFunctionIO :: TMVar WriteLockST -> IO a -> IO a
 lockFunctionIO lock func = do
-  _ <- lockState
+  _ <- (catch lockState handleException)
   finally (catch func handleException) unlockState
   where lockState = atomically $ takeTMVar lock
         unlockState = atomically $ putTMVar lock WriteLockST 
-        handleException (SomeException e) = putStrLn "Exception thrown in lockFunctionIO" >> throw e
+        handleException (SomeException e) = putStrLn "Exception thrown in lockFunctionIO " >> throw e
 
 lockHoldFunction :: TMVar WriteLockST -> IO a -> IO a
 lockHoldFunction lock func = do
-  _ <- lockState
+  _ <- (catch lockState handleException)
   catch func handleException
   where lockState = atomically $ takeTMVar lock
-        handleException (SomeException e) = putStrLn "Exception thrown in lockFunctionIO" >> throw e
+        handleException (SomeException e) = putStrLn "Exception thrown in lockFunctionIO " >> throw e
 
 
 archiveAndHandle :: CellKey k src dst tm st
@@ -427,7 +428,7 @@ archiveAndHandle ck (AcidCell (CellCore tlive tvarFAcid) _ _pDir _rDir) entryGC 
 initializeAcidCell :: (Ord k, Ord src, Ord dst, Ord tm, IsAcidic stlive) =>
                             CellKey k src dst tm stlive
                             -> stlive
-                            -> Text                            -> IO (AcidCell k src dst tm stlive (AcidState CellKeyStore))
+                            -> Text -> IO (AcidCell k src dst tm stlive (AcidState CellKeyStore))
 initializeAcidCell ck emptyTargetState root = do 
 -- print "get WD"
  parentWorkingDir <- getWorkingDirectory
