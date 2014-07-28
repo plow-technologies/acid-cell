@@ -274,13 +274,15 @@ checkIfExists ck st liveMap = case M.lookup (getKey ck st) liveMap of
 
 
 
+stateExists  :: (Ord t3, Ord t2, Ord t1, Ord t) =>
+     AcidCell t t1 t2 t3 t4 t5 -> DirectedKeyRaw t t1 t2 t3 -> IO Bool
 
 stateExists (AcidCell (CellCore tlive tvarFAcid) _ pdir rdir)  dkr = do
-  void $ (atomically $ readTVar tlive) >>= (checkST) 
+  (atomically $ readTVar tlive) >>= (checkST) 
   where
   checkST liveMap = case M.lookup dkr liveMap of
     Nothing -> return False
-    Just _ -> return True
+    Just _  -> return True
 
 
 
@@ -519,6 +521,7 @@ updateCellState cell key event = do
       let updateInnerFcn = do
             rslt <- (update' st event) 
             void $ atomically $ writeTVar (ccLive . cellCore $ cell) $ (M.insert key cst liveMap)
+            createCheckpoint st
             return rslt
       rslt <- (lockFunctionIO lock $ updateInnerFcn)      
       return . Just $ rslt 
