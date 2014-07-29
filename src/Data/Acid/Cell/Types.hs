@@ -421,7 +421,7 @@ archiveAndHandle ck (AcidCell (CellCore tlive tvarFAcid) _ _pDir _rDir) entryGC 
       targetStatePath dkr = fromText.(codeCellKeyFilename ck) $ dkr :: FilePath
       gcWrapper dkr st = do
         let stateLocalFP = (targetStatePath dkr)
-        rslt <- catch (entryGC stateLocalFP st) (\(SomeException e) -> putStrLn "at local archive point" >> print e >> return st)
+        rslt <- catch (entryGC stateLocalFP st) (\(SomeException e) -> putStrLn "at emtryGC point" >> print e >> return st)
         void $ catch (createArchive rslt ) (\(SomeException e) -> putStrLn "at local archive point" >> print e)
         return rslt
 --      targetFP =  targetStatePath ::FilePath     
