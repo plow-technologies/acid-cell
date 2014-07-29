@@ -380,12 +380,12 @@ isKeyUnlocked cell key = do
 
 lockStateIO :: TMVar WriteLockST -> b -> (b -> IO b) -> IO b
 lockStateIO lock st func = do
-  _ <- catch lockState handleException
-  finally (catch (func st) handleException') unlockState
+  _ <- catch lockState handleLockException
+  finally (catch (func st) handleFuncException) unlockState
   where lockState = atomically $ takeTMVar lock
         unlockState = atomically $ putTMVar lock WriteLockST 
-        handleException' (SomeException e) = putStrLn "Exception thrown in lockstateIO ------- " >> print e >> return st
-        handleException (SomeException e) = putStrLn "Exception while running func in lockStateIO -----" >> throw e
+        handleLockException (SomeException e) = putStrLn "Exception thrown in lockstateIO ------- " >> throw e
+        handleFuncException (SomeException e) = putStrLn "Exception while running func in lockStateIO -----" >> throw e >> return st
 
 lockFunctionIO :: TMVar WriteLockST -> IO a -> IO a
 lockFunctionIO lock func = do
@@ -523,9 +523,23 @@ updateCellState cell key event = do
     (Just cst@(CellState lock st)) -> do
       let updateInnerFcn = do
             rslt <- (update' st event) 
-            void $ atomically $ writeTVar (ccLive . cellCore $ cell) $ (M.insert key cst liveMap)
+            -- void $ atomically $ writeTVar (ccLive . cellCore $ cell) $ (M.insert key cst liveMap)
             createCheckpoint st
             return rslt
       rslt <- (lockFunctionIO lock $ updateInnerFcn)      
       return . Just $ rslt 
+    Nothing -> return Nothing
+
+
+withAcidState :: (Ord tm, Ord dst, Ord src, Ord k) =>
+                       AcidCell k src dst tm stlive stdormant
+                       -> DirectedKeyRaw k src dst tm
+                       -> (AcidState stlive -> IO a)
+                       -> IO (Maybe a)
+withAcidState cell key func = do
+  liveMap <- readTVarIO . ccLive . cellCore $ cell
+  case M.lookup key liveMap of
+    (Just cst@(CellState lock st)) -> do
+      rslt <- lockFunctionIO lock $ func st
+      return . Just $ rslt
     Nothing -> return Nothing
